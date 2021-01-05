@@ -12,6 +12,7 @@
 #ifndef TREE_H_
 #define TREE_H_
 
+#include <cmath>				
 #include <vector>
 #include <random>
 #include <iostream>
@@ -41,7 +42,7 @@ public:
       std::vector<double>* case_weights, std::vector<size_t>* manual_inbag, bool keep_inbag,
       std::vector<double>* sample_fraction, double alpha, double minprop, bool holdout, uint num_random_splits,
       uint max_depth, std::vector<double>* regularization_factor, bool regularization_usedepth,
-      std::vector<bool>* split_varIDs_used);
+      std::vector<bool>* split_varIDs_used,double missing_tree_weight);
 
   virtual void allocateMemory() = 0;
 
@@ -215,7 +216,12 @@ protected:
   // When growing here the OOB set is used
   // Terminal nodeIDs for prediction samples
   std::vector<size_t> prediction_terminal_nodeIDs;
+  std::vector<size_t> prediction_terminal_node_missing_counts;
 
+  // Counts of random decisions due to missing values
+  // from root, down to terminal node
+  std::vector<size_t> missing_count;
+  double missing_tree_weight;															  				 
   bool sample_with_replacement;
   const std::vector<double>* sample_fraction;
 

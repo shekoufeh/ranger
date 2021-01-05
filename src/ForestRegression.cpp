@@ -40,7 +40,7 @@ void ForestRegression::loadForest(size_t num_trees,
 }
 
 void ForestRegression::initInternal() {
-
+  // mtry number of features to possibly split on, in each node
   // If mtry not set, use floored square root of number of independent variables
   if (mtry == 0) {
     unsigned long temp = sqrt((double) num_independent_variables);
@@ -80,45 +80,64 @@ void ForestRegression::allocatePredictMemory() {
   if (predict_all || prediction_type == TERMINALNODES) {
     predictions = std::vector<std::vector<std::vector<double>>>(1,
         std::vector<std::vector<double>>(num_prediction_samples, std::vector<double>(num_trees)));
+	predictions_missing_count = std::vector<std::vector<std::vector<size_t>>>(1,
+        std::vector<std::vector<size_t>>(num_prediction_samples, std::vector<size_t>(num_trees)));																																										  
   } else {
     predictions = std::vector<std::vector<std::vector<double>>>(1,
         std::vector<std::vector<double>>(1, std::vector<double>(num_prediction_samples)));
+	predictions_missing_count = std::vector<std::vector<std::vector<size_t>>>(1,
+        std::vector<std::vector<size_t>>(1, std::vector<size_t>(num_prediction_samples)));																																								  
   }
 }
 
 void ForestRegression::predictInternal(size_t sample_idx) {
+  size_t missing_count = 0;						   
   if (predict_all || prediction_type == TERMINALNODES) {
     // Get all tree predictions
     for (size_t tree_idx = 0; tree_idx < num_trees; ++tree_idx) {
       if (prediction_type == TERMINALNODES) {
-        predictions[0][sample_idx][tree_idx] = getTreePredictionTerminalNodeID(tree_idx, sample_idx);
+        predictions[0][sample_idx][tree_idx] = getTreePredictionTerminalNodeID(tree_idx, sample_idx,missing_count);
+		predictions_missing_count[0][sample_idx][tree_idx] = missing_count;															   
       } else {
-        predictions[0][sample_idx][tree_idx] = getTreePrediction(tree_idx, sample_idx);
+        predictions[0][sample_idx][tree_idx] = getTreePrediction(tree_idx, sample_idx,missing_count);
       }
     }
   } else {
     // Mean over trees
     double prediction_sum = 0;
+	double sum_weights = 0;
+    double pred = 0;
+    double weight = 0;					   			  
     for (size_t tree_idx = 0; tree_idx < num_trees; ++tree_idx) {
-      prediction_sum += getTreePrediction(tree_idx, sample_idx);
+      pred = getTreePrediction(tree_idx, sample_idx, missing_count);
+      weight = pow(Forest::missing_forest_weight,missing_count);
+      prediction_sum += (pred*weight);
+      sum_weights += weight;				
     }
-    predictions[0][0][sample_idx] = prediction_sum / num_trees;
+    predictions[0][0][sample_idx] = prediction_sum / sum_weights;
   }
 }
 
 void ForestRegression::computePredictionErrorInternal() {
 
+  size_t missing_count = 0;					   
   // For each sample sum over trees where sample is OOB
   std::vector<size_t> samples_oob_count;
+  std::vector<double> weighted_samples_oob_count;											 
   predictions = std::vector<std::vector<std::vector<double>>>(1,
       std::vector<std::vector<double>>(1, std::vector<double>(num_samples, 0)));
+  predictions_missing_count = std::vector<std::vector<std::vector<size_t>>>(1,
+      std::vector<std::vector<size_t>>(1, std::vector<size_t>(num_samples, 0)));															  																				
   samples_oob_count.resize(num_samples, 0);
+  weighted_samples_oob_count.resize(num_samples,0);
+  double weight = 0;				
   for (size_t tree_idx = 0; tree_idx < num_trees; ++tree_idx) {
     for (size_t sample_idx = 0; sample_idx < trees[tree_idx]->getNumSamplesOob(); ++sample_idx) {
       size_t sampleID = trees[tree_idx]->getOobSampleIDs()[sample_idx];
-      double value = getTreePrediction(tree_idx, sample_idx);
-
-      predictions[0][0][sampleID] += value;
+      double value = getTreePrediction(tree_idx, sample_idx, missing_count);
+      weight = pow(Forest::missing_forest_weight,missing_count);
+      predictions[0][0][sampleID] += (weight*value);
+      weighted_samples_oob_count[sampleID]+=weight;										   
       ++samples_oob_count[sampleID];
     }
   }
@@ -129,7 +148,7 @@ void ForestRegression::computePredictionErrorInternal() {
   for (size_t i = 0; i < predictions[0][0].size(); ++i) {
     if (samples_oob_count[i] > 0) {
       ++num_predictions;
-      predictions[0][0][i] /= (double) samples_oob_count[i];
+      predictions[0][0][i] /= (double) weighted_samples_oob_count[i];
       double predicted_value = predictions[0][0][i];
       double real_value = data->get_y(i, 0);
       overall_prediction_error += (predicted_value - real_value) * (predicted_value - real_value);
@@ -245,14 +264,14 @@ void ForestRegression::loadFromFileInternal(std::ifstream& infile) {
   }
 }
 
-double ForestRegression::getTreePrediction(size_t tree_idx, size_t sample_idx) const {
+double ForestRegression::getTreePrediction(size_t tree_idx, size_t sample_idx, size_t &missing_count) const {
   const auto& tree = dynamic_cast<const TreeRegression&>(*trees[tree_idx]);
-  return tree.getPrediction(sample_idx);
+  return tree.getPrediction(sample_idx,missing_count);
 }
 
-size_t ForestRegression::getTreePredictionTerminalNodeID(size_t tree_idx, size_t sample_idx) const {
+size_t ForestRegression::getTreePredictionTerminalNodeID(size_t tree_idx, size_t sample_idx, size_t &missing_count) const {
   const auto& tree = dynamic_cast<const TreeRegression&>(*trees[tree_idx]);
-  return tree.getPredictionTerminalNodeID(sample_idx);
+  return tree.getPredictionTerminalNodeID(sample_idx,missing_count);
 }
 
 // #nocov end

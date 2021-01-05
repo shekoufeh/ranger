@@ -73,7 +73,8 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
                                   num.trees = object$num.trees, 
                                   type = "response", se.method = "infjack",
                                   seed = NULL, num.threads = NULL,
-                                  verbose = TRUE, inbag.counts = NULL, ...) {
+                                  verbose = TRUE, inbag.counts = NULL,
+								  missing.forest.weight=object$missing.forest.weight, ...) {
 
   ## GenABEL GWA data
   if (inherits(data, "gwaa.data")) {
@@ -183,12 +184,14 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
     x <- data.matrix(x)
   }
 
-  ## Check missing values
+  ## Check missing values		
+  ## Don't stop if values are missing
+  if(FALSE){
   if (any(is.na(x))) {
     offending_columns <- colnames(x)[colSums(is.na(x)) > 0]
     stop("Missing data in columns: ",
          paste0(offending_columns, collapse = ", "), ".", call. = FALSE)
-  }
+  }}
 
   ## Num threads
   ## Default 0 -> detect from system in C++.
@@ -197,7 +200,12 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   } else if (!is.numeric(num.threads) || num.threads < 0) {
     stop("Error: Invalid value for num.threads")
   }
-
+  if (is.null(missing.forest.weight)) {
+    missing.forest.weight<-1.0
+  } else if (!is.numeric(missing.forest.weight) || missing.forest.weight <= 0 || missing.forest.weight > 1.0) {
+    stop("Error: Invalid value for missing.forest.weight")
+  }
+  
   ## Seed
   if (is.null(seed)) {
     seed <- runif(1 , 0, .Machine$integer.max)
@@ -249,6 +257,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   regularization.factor <- c(0, 0)
   use.regularization.factor <- FALSE
   regularization.usedepth <- FALSE
+  missing.tree.weight <- 1.0					   
   
   ## Use sparse matrix
   if (inherits(x, "dgCMatrix")) {
@@ -272,7 +281,8 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
                       predict.all, keep.inbag, sample.fraction, alpha, minprop, holdout, 
                       prediction.type, num.random.splits, sparse.x, use.sparse.data,
                       order.snps, oob.error, max.depth, inbag, use.inbag, 
-                      regularization.factor, use.regularization.factor, regularization.usedepth)
+                      regularization.factor, use.regularization.factor, regularization.usedepth,
+					  missing.tree.weight,missing.forest.weight)
 
   if (length(result) == 0) {
     stop("User interrupt or internal error.")

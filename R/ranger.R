@@ -224,7 +224,8 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
                    num.threads = NULL, save.memory = FALSE,
                    verbose = TRUE, seed = NULL, 
                    dependent.variable.name = NULL, status.variable.name = NULL, 
-                   classification = NULL, x = NULL, y = NULL, ...) {
+                   classification = NULL, x = NULL, y = NULL,
+				   missing.tree.weight=1.0,missing.forest.weight=1.0,...) {
   
   ## Handle ... arguments
   if (length(list(...)) > 0) {
@@ -290,11 +291,12 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
   }
   
   ## Check missing values
-  if (any(is.na(x))) {
+  if(FALSE)
+  {if (any(is.na(x))) {
     offending_columns <- colnames(x)[colSums(is.na(x)) > 0]
     stop("Missing data in columns: ",
          paste0(offending_columns, collapse = ", "), ".", call. = FALSE)
-  }
+  }}
   if (any(is.na(y))) {
     stop("Missing data in dependent variable.", call. = FALSE)
   }
@@ -754,7 +756,15 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
   if (splitrule == "maxstat" & use.regularization.factor) {
     stop("Error: Regularization cannot be used with 'maxstat' splitrule.")
   }
-
+  
+  if (!is.numeric(missing.tree.weight) || missing.tree.weight <= 0 || missing.tree.weight > 1.0) {
+    stop("Error: Invalid value for missing.tree.weight")
+  }
+  
+  if (!is.numeric(missing.forest.weight) || missing.forest.weight <= 0 || missing.forest.weight > 1.0) {
+    stop("Error: Invalid value for missing.forest.weight")
+  }
+  
   ## Extra trees
   if (!is.numeric(num.random.splits) || num.random.splits < 1) {
     stop("Error: Invalid value for num.random.splits, please give a positive integer.")
@@ -865,7 +875,8 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
                       predict.all, keep.inbag, sample.fraction, alpha, minprop, holdout, prediction.type, 
                       num.random.splits, sparse.x, use.sparse.data, order.snps, oob.error, max.depth, 
                       inbag, use.inbag, 
-                      regularization.factor, use.regularization.factor, regularization.usedepth)
+                      regularization.factor, use.regularization.factor, regularization.usedepth,
+					  missing.tree.weight,missing.forest.weight)
   
   if (length(result) == 0) {
     stop("User interrupt or internal error.")

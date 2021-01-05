@@ -224,7 +224,12 @@ void Data::getAllValues(std::vector<double>& all_values, std::vector<size_t>& sa
     for (size_t pos = start; pos < end; ++pos) {
       all_values.push_back(get_x(sampleIDs[pos], varID));
     }
-    std::sort(all_values.begin(), all_values.end());
+	auto cmp=[](const double &d1, const double &d2){
+      if (std::isnan(d1)) return false;
+      if (std::isnan(d2)) return true;
+      return d1<d2;
+    }; 												
+    std::sort(all_values.begin(), all_values.end(),cmp);
     all_values.erase(std::unique(all_values.begin(), all_values.end()), all_values.end());
   } else {
     // If GWA data just use 0, 1, 2
@@ -262,7 +267,12 @@ void Data::sort() {
     for (size_t row = 0; row < num_rows; ++row) {
       unique_values[row] = get_x(row, col);
     }
-    std::sort(unique_values.begin(), unique_values.end());
+	auto cmp=[](const double &d1, const double &d2){
+      if (std::isnan(d1)) return false;
+      if (std::isnan(d2)) return true;
+      return d1<d2;
+    };  
+    std::sort(unique_values.begin(), unique_values.end(),cmp);
     unique_values.erase(unique(unique_values.begin(), unique_values.end()), unique_values.end());
 
     // Get index of unique value

@@ -38,12 +38,14 @@ public:
   void computePermutationImportanceInternal(std::vector<std::vector<size_t>>* permutations);
   void appendToFileInternal(std::ofstream& file) override;
 
-  double getPrediction(size_t sampleID) const {
+  double getPrediction(size_t sampleID, size_t &missing_count) const {
     size_t terminal_nodeID = prediction_terminal_nodeIDs[sampleID];
+	missing_count = prediction_terminal_node_missing_counts[sampleID];															  
     return (split_values[terminal_nodeID]);
   }
 
-  size_t getPredictionTerminalNodeID(size_t sampleID) const {
+  size_t getPredictionTerminalNodeID(size_t sampleID, size_t &missing_count) const {
+	missing_count = prediction_terminal_node_missing_counts[sampleID];														  
     return prediction_terminal_nodeIDs[sampleID];
   }
 

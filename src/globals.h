@@ -91,6 +91,8 @@ const uint DEFAULT_MIN_NODE_SIZE_PROBABILITY = 10;
 const SplitRule DEFAULT_SPLITRULE = LOGRANK;
 const double DEFAULT_ALPHA = 0.5;
 const double DEFAULT_MINPROP = 0.1;
+const double DEFAULT_MISSING_TREE_WEIGHT = 1.0;
+const double DEFAULT_MISSING_FOREST_WEIGHT = 1.0;												 
 
 const uint DEFAULT_MAXDEPTH = 0;
 const PredictionType DEFAULT_PREDICTIONTYPE = RESPONSE;

@@ -41,7 +41,8 @@ void Tree::init(const Data* data, uint mtry, size_t num_samples, uint seed, std:
     bool sample_with_replacement, bool memory_saving_splitting, SplitRule splitrule, std::vector<double>* case_weights,
     std::vector<size_t>* manual_inbag, bool keep_inbag, std::vector<double>* sample_fraction, double alpha,
     double minprop, bool holdout, uint num_random_splits, uint max_depth, std::vector<double>* regularization_factor,
-    bool regularization_usedepth, std::vector<bool>* split_varIDs_used) {
+    bool regularization_usedepth, std::vector<bool>* split_varIDs_used,
+	double missing_tree_weight) {	 
 
   this->data = data;
   this->mtry = mtry;
@@ -75,6 +76,9 @@ void Tree::init(const Data* data, uint mtry, size_t num_samples, uint seed, std:
   this->regularization_usedepth = regularization_usedepth;
   this->split_varIDs_used = split_varIDs_used;
 
+  this->missing_count.resize(num_samples, 0);
+  
+  this->missing_tree_weight=missing_tree_weight;											 
   // Regularization
   if (regularization_factor->size() > 0) {
     regularization = true;
@@ -144,7 +148,7 @@ void Tree::grow(std::vector<double>* variable_importance) {
 }
 
 void Tree::predict(const Data* prediction_data, bool oob_prediction) {
-
+  std::uniform_real_distribution<double> distribution(0.0,1.0);
   size_t num_samples_predict;
   if (oob_prediction) {
     num_samples_predict = num_samples_oob;
@@ -153,8 +157,13 @@ void Tree::predict(const Data* prediction_data, bool oob_prediction) {
   }
 
   prediction_terminal_nodeIDs.resize(num_samples_predict, 0);
-
-  // For each sample start in root, drop down the tree and return final value
+  prediction_terminal_node_missing_counts.resize(num_samples_predict,0);
+  
+  // randomly pick a number btw 0, 1
+  bool missGoLeft = false;
+  bool missVal = false;
+  
+  // For each sample start in root, drop down the tree and return final value																	   
   for (size_t i = 0; i < num_samples_predict; ++i) {
     size_t sample_idx;
     if (oob_prediction) {
@@ -163,6 +172,7 @@ void Tree::predict(const Data* prediction_data, bool oob_prediction) {
       sample_idx = i;
     }
     size_t nodeID = 0;
+	size_t missing_count = 0;						 
     while (1) {
 
       // Break if terminal node
@@ -174,8 +184,19 @@ void Tree::predict(const Data* prediction_data, bool oob_prediction) {
       size_t split_varID = split_varIDs[nodeID];
 
       double value = prediction_data->get_x(sample_idx, split_varID);
+	  // randomly pick a number btw 0, 1
+      missGoLeft = false;
+      missVal = false;
+      
+      missVal = std::isnan(value);
+      if(missVal){
+        missGoLeft = distribution(random_number_generator) <= 0.5;
+        ++missing_count;
+      }
+      
+      //Random decision on missing values, count missing																					
       if (prediction_data->isOrderedVariable(split_varID)) {
-        if (value <= split_values[nodeID]) {
+        if ((missVal && missGoLeft) || ((!missVal) && value <= split_values[nodeID])) {
           // Move to left child
           nodeID = child_nodeIDs[0][nodeID];
         } else {
@@ -187,7 +208,7 @@ void Tree::predict(const Data* prediction_data, bool oob_prediction) {
         size_t splitID = floor(split_values[nodeID]);
 
         // Left if 0 found at position factorID
-        if (!(splitID & (1ULL << factorID))) {
+        if ((missVal && missGoLeft) || ((!missVal) && !(splitID & (1ULL << factorID)))) {
           // Move to left child
           nodeID = child_nodeIDs[0][nodeID];
         } else {
@@ -198,6 +219,7 @@ void Tree::predict(const Data* prediction_data, bool oob_prediction) {
     }
 
     prediction_terminal_nodeIDs[i] = nodeID;
+	prediction_terminal_node_missing_counts[i] = missing_count;														   
   }
 }
 
@@ -291,6 +313,7 @@ void Tree::createPossibleSplitVarSubset(std::vector<size_t>& result) {
 
 bool Tree::splitNode(size_t nodeID) {
 
+  std::uniform_real_distribution<double> distribution(0.0,1.0);														   
   // Select random subset of variables to possibly split at
   std::vector<size_t> possible_split_varIDs;
   createPossibleSplitVarSubset(possible_split_varIDs);
@@ -320,18 +343,33 @@ bool Tree::splitNode(size_t nodeID) {
   start_pos[right_child_nodeID] = end_pos[nodeID];
 
   // For each sample in node, assign to left or right child
+  size_t n_left=0;
+  size_t n_right=0;
+  
+  
+  // randomly pick a number btw 0, 1
+  bool missGoLeft = false;
+  bool missVal = false;			  
   if (data->isOrderedVariable(split_varID)) {
     // Ordered: left is <= splitval and right is > splitval
     size_t pos = start_pos[nodeID];
     while (pos < start_pos[right_child_nodeID]) {
       size_t sampleID = sampleIDs[pos];
-      if (data->get_x(sampleID, split_varID) <= split_value) {
+	  missVal = std::isnan(data->get_x(sampleID, split_varID));
+      if(missVal){
+        missGoLeft = distribution(random_number_generator) <= 0.5;
+        ++Tree::missing_count[sampleID];
+      }
+      // Randomly assign missing values to right or left child																		   									   
+      if ((data->get_x(sampleID, split_varID) <= split_value) || (missVal && missGoLeft)) {
         // If going to left, do nothing
         ++pos;
+		++n_left;		 
       } else {
         // If going to right, move to right end
         --start_pos[right_child_nodeID];
         std::swap(sampleIDs[pos], sampleIDs[start_pos[right_child_nodeID]]);
+		++n_right;		  
       }
     }
   } else {
@@ -343,8 +381,13 @@ bool Tree::splitNode(size_t nodeID) {
       size_t factorID = floor(level) - 1;
       size_t splitID = floor(split_value);
 
+	  missVal = std::isnan(data->get_x(sampleID, split_varID));
+      if(missVal){
+        missGoLeft = distribution(random_number_generator) <= 0.5;
+        ++Tree::missing_count[sampleID];
+      }														   
       // Left if 0 found at position factorID
-      if (!(splitID & (1ULL << factorID))) {
+      if ((!(splitID & (1ULL << factorID)))|| (missVal && missGoLeft)) {
         // If going to left, do nothing
         ++pos;
       } else {

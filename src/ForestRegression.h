@@ -46,8 +46,8 @@ private:
   void loadFromFileInternal(std::ifstream& infile) override;
 
 private:
-  double getTreePrediction(size_t tree_idx, size_t sample_idx) const;
-  size_t getTreePredictionTerminalNodeID(size_t tree_idx, size_t sample_idx) const;
+  double getTreePrediction(size_t tree_idx, size_t sample_idx, size_t &missing_count) const;
+  size_t getTreePredictionTerminalNodeID(size_t tree_idx, size_t sample_idx, size_t &missing_count) const;
 };
 
 } // namespace ranger
