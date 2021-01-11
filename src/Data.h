@@ -41,6 +41,9 @@ public:
   virtual void set_x(size_t col, size_t row, double value, bool& error) = 0;
   virtual void set_y(size_t col, size_t row, double value, bool& error) = 0;
 
+  double get_median_of_non_missing(std::vector<size_t> &sampleIDs,
+                              size_t split_varID,size_t start_pos, size_t end_pos) const;
+  
   void addSnpData(unsigned char* snp_data, size_t num_cols_snp);
 
   bool loadFromFile(std::string filename, std::vector<std::string>& dependent_variable_names);
@@ -122,7 +125,9 @@ public:
   }
 
   void sort();
-
+  
+  double compute_median(std::vector<double> &values) const;
+  
   void orderSnpLevels(bool corrected_importance);
 
   const std::vector<std::string>& getVariableNames() const {
@@ -196,13 +201,16 @@ public:
     order_snps = true;
   }
   // #nocov end
-
+  
+  // handle missing data 
+  std::vector<size_t> missing_value_sampleIDs;
+  
 protected:
   std::vector<std::string> variable_names;
   size_t num_rows;
   size_t num_rows_rounded;
   size_t num_cols;
-
+  
   unsigned char* snp_data;
   size_t num_cols_no_snp;
 
@@ -212,6 +220,8 @@ protected:
   std::vector<std::vector<double>> unique_data_values;
   size_t max_num_unique_values;
 
+  
+  
   // For each varID true if ordered
   std::vector<bool> is_ordered_variable;
 

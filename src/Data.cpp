@@ -214,6 +214,50 @@ bool Data::loadFromFileOther(std::ifstream& input_file, std::string header_line,
 }
 // #nocov end
 
+double Data::compute_median(std::vector<double> &values) const
+{
+  size_t size = values.size();
+  
+  if (size == 0)
+  {
+    return 0;  // Undefined.
+  }
+  else
+  {
+    std::sort(values.begin(), values.end());
+    if (size % 2 == 0)
+    {
+      return (values[size / 2 - 1] + values[size / 2]) / 2;
+    }
+    else 
+    {
+      return values[size / 2];
+    }
+  }
+}
+
+double Data::get_median_of_non_missing(std::vector<size_t> &sampleIDs,
+                                         size_t split_varID, size_t start_pos, size_t end_pos) const
+{
+  size_t pos = start_pos;
+  bool missVal = false;
+  double sampleVal;
+  std::vector<double> nonMissingVals;
+  while (pos < end_pos) {
+    size_t sampleID = sampleIDs[pos];
+    sampleVal = get_x(sampleID, split_varID);
+    missVal = std::isnan(sampleVal);
+    if(!missVal){
+      nonMissingVals.push_back(sampleVal);
+    }
+    ++pos;
+  }
+  // for median imputation
+  double median = compute_median(nonMissingVals);
+  
+  return median;
+}
+
 void Data::getAllValues(std::vector<double>& all_values, std::vector<size_t>& sampleIDs, size_t varID, size_t start,
     size_t end) const {
 

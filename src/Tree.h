@@ -42,7 +42,7 @@ public:
       std::vector<double>* case_weights, std::vector<size_t>* manual_inbag, bool keep_inbag,
       std::vector<double>* sample_fraction, double alpha, double minprop, bool holdout, uint num_random_splits,
       uint max_depth, std::vector<double>* regularization_factor, bool regularization_usedepth,
-      std::vector<bool>* split_varIDs_used,double missing_tree_weight);
+      std::vector<bool>* split_varIDs_used,double missing_tree_weight,uint imputation_method);
 
   virtual void allocateMemory() = 0;
 
@@ -221,7 +221,8 @@ protected:
   // Counts of random decisions due to missing values
   // from root, down to terminal node
   std::vector<size_t> missing_count;
-  double missing_tree_weight;															  				 
+  double missing_tree_weight;	
+  uint imputation_method;
   bool sample_with_replacement;
   const std::vector<double>* sample_fraction;
 

@@ -225,7 +225,8 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
                    verbose = TRUE, seed = NULL, 
                    dependent.variable.name = NULL, status.variable.name = NULL, 
                    classification = NULL, x = NULL, y = NULL,
-				   missing.tree.weight=1.0,missing.forest.weight=1.0,...) {
+				           missing.tree.weight=1.0,missing.forest.weight=1.0,
+				           impute.missing="none",...) {
   
   ## Handle ... arguments
   if (length(list(...)) > 0) {
@@ -765,6 +766,19 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
     stop("Error: Invalid value for missing.forest.weight")
   }
   
+  ## Importance mode
+  if (is.null(impute.missing) || impute.missing == "none") {
+    imputationmethod <- 0
+  } else if (impute.missing == "median") {
+    imputationmethod <- 1
+  } else if (importance == "low_rank") {
+    imputationmethod <- 2
+  } else if (impute.missing == "empirical_distribution") {
+    imputationmethod <- 3
+  } else {
+    stop("Error: Unknown missing value imputation method.")
+  }
+  
   ## Extra trees
   if (!is.numeric(num.random.splits) || num.random.splits < 1) {
     stop("Error: Invalid value for num.random.splits, please give a positive integer.")
@@ -876,7 +890,7 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
                       num.random.splits, sparse.x, use.sparse.data, order.snps, oob.error, max.depth, 
                       inbag, use.inbag, 
                       regularization.factor, use.regularization.factor, regularization.usedepth,
-					  missing.tree.weight,missing.forest.weight)
+					            missing.tree.weight,missing.forest.weight,imputationmethod)
   
   if (length(result) == 0) {
     stop("User interrupt or internal error.")
@@ -938,6 +952,17 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
   result$splitrule <- splitrule
   if (splitrule == "extratrees") {
     result$num.random.splits <- num.random.splits
+  }
+  
+  ## Set imputation method
+  if (imputationmethod == 0) {
+    result$imputationmethod <- "none"
+  } else if (imputationmethod == 1) {
+    result$imputationmethod <- "median"
+  } else if (imputationmethod == 2) {
+    result$imputationmethod <- "low_rank"
+  } else if (imputationmethod == 3) {
+    result$imputationmethod <- "empirical_distribution"
   }
   
   ## Set treetype

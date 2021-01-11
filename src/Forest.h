@@ -49,7 +49,7 @@ public:
       std::string case_weights_file, bool predict_all, double sample_fraction, double alpha, double minprop,
       bool holdout, PredictionType prediction_type, uint num_random_splits, uint max_depth,
       const std::vector<double>& regularization_factor, bool regularization_usedepth,
-	  double missing_tree_weight, double missing_forest_weight);
+	  double missing_tree_weight, double missing_forest_weight, uint imputation_method);
   void initR(std::unique_ptr<Data> input_data, uint mtry, uint num_trees, std::ostream* verbose_out, uint seed,
       uint num_threads, ImportanceMode importance_mode, uint min_node_size,
       std::vector<std::vector<double>>& split_select_weights,
@@ -59,14 +59,14 @@ public:
       bool keep_inbag, std::vector<double>& sample_fraction, double alpha, double minprop, bool holdout,
       PredictionType prediction_type, uint num_random_splits, bool order_snps, uint max_depth,
       const std::vector<double>& regularization_factor, bool regularization_usedepth,
-	  double missing_tree_weight, double missing_forest_weight);
+	  double missing_tree_weight, double missing_forest_weight,uint imputation_method);
   void init(MemoryMode memory_mode, std::unique_ptr<Data> input_data, uint mtry, std::string output_prefix,
       uint num_trees, uint seed, uint num_threads, ImportanceMode importance_mode, uint min_node_size,
       bool prediction_mode, bool sample_with_replacement, const std::vector<std::string>& unordered_variable_names,
       bool memory_saving_splitting, SplitRule splitrule, bool predict_all, std::vector<double>& sample_fraction,
       double alpha, double minprop, bool holdout, PredictionType prediction_type, uint num_random_splits,
       bool order_snps, uint max_depth, const std::vector<double>& regularization_factor, bool regularization_usedepth,
-	  double missing_tree_weight, double missing_forest_weight);															
+	  double missing_tree_weight, double missing_forest_weight, uint imputation_method);															
   virtual void initInternal() = 0;
 
   // Grow or predict
@@ -213,8 +213,10 @@ protected:
   double minprop;
   
   // handling missing values
+  uint imputation_method;
   double missing_tree_weight;
-  double missing_forest_weight;										   
+  double missing_forest_weight;		
+  
 
   // Multithreading
   uint num_threads;

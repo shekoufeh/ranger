@@ -74,7 +74,8 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
                                   type = "response", se.method = "infjack",
                                   seed = NULL, num.threads = NULL,
                                   verbose = TRUE, inbag.counts = NULL,
-								  missing.forest.weight=object$missing.forest.weight, ...) {
+								                  missing.forest.weight=object$missing.forest.weight, 
+								                  impute.missing=object$impute.missing,...) {
 
   ## GenABEL GWA data
   if (inherits(data, "gwaa.data")) {
@@ -206,6 +207,18 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
     stop("Error: Invalid value for missing.forest.weight")
   }
   
+  if (forest$imputationmethod == "none") {
+    imputationmethod <- 0
+  } else if (forest$imputationmethod == "median") {
+    imputationmethod <- 1
+  } else if (forest$imputationmethod == "low_rank") {
+    imputationmethod <- 2
+  } else if (forest$imputationmethod == "empirical_distribution") {
+    imputationmethod <- 3
+  }  else {
+    stop("Error: Unknown imputation method.")
+  }
+  
   ## Seed
   if (is.null(seed)) {
     seed <- runif(1 , 0, .Machine$integer.max)
@@ -282,7 +295,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
                       prediction.type, num.random.splits, sparse.x, use.sparse.data,
                       order.snps, oob.error, max.depth, inbag, use.inbag, 
                       regularization.factor, use.regularization.factor, regularization.usedepth,
-					  missing.tree.weight,missing.forest.weight)
+					  missing.tree.weight,missing.forest.weight,imputationmethod)
 
   if (length(result) == 0) {
     stop("User interrupt or internal error.")
@@ -291,7 +304,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   ## Prepare results
   result$num.samples <- nrow(x)
   result$treetype <- forest$treetype
-
+  result$imputationmethod <- imputationmethod
   if (predict.all) {
     if (forest$treetype %in% c("Classification", "Regression")) {
       if (is.list(result$predictions)) {

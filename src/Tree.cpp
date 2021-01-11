@@ -42,7 +42,7 @@ void Tree::init(const Data* data, uint mtry, size_t num_samples, uint seed, std:
     std::vector<size_t>* manual_inbag, bool keep_inbag, std::vector<double>* sample_fraction, double alpha,
     double minprop, bool holdout, uint num_random_splits, uint max_depth, std::vector<double>* regularization_factor,
     bool regularization_usedepth, std::vector<bool>* split_varIDs_used,
-	double missing_tree_weight) {	 
+	double missing_tree_weight, uint imputation_method) {	 
 
   this->data = data;
   this->mtry = mtry;
@@ -78,7 +78,9 @@ void Tree::init(const Data* data, uint mtry, size_t num_samples, uint seed, std:
 
   this->missing_count.resize(num_samples, 0);
   
-  this->missing_tree_weight=missing_tree_weight;											 
+  this->missing_tree_weight = missing_tree_weight;			
+  this->imputation_method = imputation_method;
+  
   // Regularization
   if (regularization_factor->size() > 0) {
     regularization = true;
@@ -345,8 +347,12 @@ bool Tree::splitNode(size_t nodeID) {
   // For each sample in node, assign to left or right child
   size_t n_left=0;
   size_t n_right=0;
-  
-  
+  double newValueForMissing;
+  if(imputation_method == 1){
+    // compute the median of non-missing values
+    newValueForMissing = data->get_median_of_non_missing(sampleIDs, split_varID, start_pos[nodeID], start_pos[right_child_nodeID]);
+  }
+ 
   // randomly pick a number btw 0, 1
   bool missGoLeft = false;
   bool missVal = false;			  
@@ -355,21 +361,25 @@ bool Tree::splitNode(size_t nodeID) {
     size_t pos = start_pos[nodeID];
     while (pos < start_pos[right_child_nodeID]) {
       size_t sampleID = sampleIDs[pos];
-	  missVal = std::isnan(data->get_x(sampleID, split_varID));
+	    missVal = std::isnan(data->get_x(sampleID, split_varID));
       if(missVal){
-        missGoLeft = distribution(random_number_generator) <= 0.5;
+        if(imputation_method==0){ // none
+          missGoLeft = distribution(random_number_generator) <= 0.5;
+        } else if(imputation_method==1){
+          missGoLeft = newValueForMissing <= split_value;
+        }
         ++Tree::missing_count[sampleID];
       }
       // Randomly assign missing values to right or left child																		   									   
-      if ((data->get_x(sampleID, split_varID) <= split_value) || (missVal && missGoLeft)) {
+      if (((data->get_x(sampleID, split_varID) <= split_value)&&!missVal) || (missVal && missGoLeft)) {
         // If going to left, do nothing
         ++pos;
-		++n_left;		 
+	    	++n_left;		 
       } else {
         // If going to right, move to right end
         --start_pos[right_child_nodeID];
         std::swap(sampleIDs[pos], sampleIDs[start_pos[right_child_nodeID]]);
-		++n_right;		  
+	    	++n_right;		  
       }
     }
   } else {
@@ -383,11 +393,15 @@ bool Tree::splitNode(size_t nodeID) {
 
 	  missVal = std::isnan(data->get_x(sampleID, split_varID));
       if(missVal){
-        missGoLeft = distribution(random_number_generator) <= 0.5;
+        if(imputation_method==0){ // none
+          missGoLeft = distribution(random_number_generator) <= 0.5;
+        } else if(imputation_method==1){
+          missGoLeft = newValueForMissing <= split_value;
+        }
         ++Tree::missing_count[sampleID];
       }														   
       // Left if 0 found at position factorID
-      if ((!(splitID & (1ULL << factorID)))|| (missVal && missGoLeft)) {
+      if (((!(splitID & (1ULL << factorID)))&&!missVal)|| (missVal && missGoLeft)) {
         // If going to left, do nothing
         ++pos;
       } else {
@@ -402,6 +416,8 @@ bool Tree::splitNode(size_t nodeID) {
   end_pos[left_child_nodeID] = start_pos[right_child_nodeID];
   end_pos[right_child_nodeID] = end_pos[nodeID];
 
+  // restore missing values at missing locations
+  
   // No terminal node
   return false;
 }

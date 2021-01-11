@@ -33,8 +33,8 @@ Forest::Forest() :
         0), prediction_mode(false), memory_mode(MEM_DOUBLE), sample_with_replacement(true), memory_saving_splitting(
         false), splitrule(DEFAULT_SPLITRULE), predict_all(false), keep_inbag(false), sample_fraction( { 1 }), holdout(
         false), prediction_type(DEFAULT_PREDICTIONTYPE), num_random_splits(DEFAULT_NUM_RANDOM_SPLITS), max_depth(
-        DEFAULT_MAXDEPTH), alpha(DEFAULT_ALPHA),missing_tree_weight(DEFAULT_MISSING_TREE_WEIGHT),missing_forest_weight(DEFAULT_MISSING_FOREST_WEIGHT), minprop(DEFAULT_MINPROP), num_threads(DEFAULT_NUM_THREADS), data { }, overall_prediction_error(
-    NAN), importance_mode(DEFAULT_IMPORTANCE_MODE), regularization_usedepth(false), progress(0) {
+        DEFAULT_MAXDEPTH), alpha(DEFAULT_ALPHA),missing_tree_weight(DEFAULT_MISSING_TREE_WEIGHT),missing_forest_weight(DEFAULT_MISSING_FOREST_WEIGHT),imputation_method(DEFAULT_IMPUTATION_METHOD),
+        minprop(DEFAULT_MINPROP), num_threads(DEFAULT_NUM_THREADS), data { }, overall_prediction_error(NAN), importance_mode(DEFAULT_IMPORTANCE_MODE), regularization_usedepth(false), progress(0) {
 }
 
 // #nocov start
@@ -46,7 +46,8 @@ void Forest::initCpp(std::string dependent_variable_name, MemoryMode memory_mode
     const std::vector<std::string>& unordered_variable_names, bool memory_saving_splitting, SplitRule splitrule,
     std::string case_weights_file, bool predict_all, double sample_fraction, double alpha, double minprop, bool holdout,
     PredictionType prediction_type, uint num_random_splits, uint max_depth,
-    const std::vector<double>& regularization_factor, bool regularization_usedepth,double missing_tree_weight,double missing_forest_weight) {
+    const std::vector<double>& regularization_factor, bool regularization_usedepth,double missing_tree_weight,double missing_forest_weight,
+    uint imputation_method) {
 
   this->verbose_out = verbose_out;
 
@@ -82,7 +83,7 @@ void Forest::initCpp(std::string dependent_variable_name, MemoryMode memory_mode
   init(memory_mode, loadDataFromFile(input_file), mtry, output_prefix, num_trees, seed, num_threads, importance_mode,
       min_node_size, prediction_mode, sample_with_replacement, unordered_variable_names, memory_saving_splitting,
       splitrule, predict_all, sample_fraction_vector, alpha, minprop, holdout, prediction_type, num_random_splits,
-      false, max_depth, regularization_factor, regularization_usedepth,missing_tree_weight,missing_forest_weight);
+      false, max_depth, regularization_factor, regularization_usedepth,missing_tree_weight,missing_forest_weight,imputation_method);
 
   if (prediction_mode) {
     loadFromFile(load_forest_filename);
@@ -141,7 +142,7 @@ void Forest::initR(std::unique_ptr<Data> input_data, uint mtry, uint num_trees, 
     std::vector<std::vector<size_t>>& manual_inbag, bool predict_all, bool keep_inbag,
     std::vector<double>& sample_fraction, double alpha, double minprop, bool holdout, PredictionType prediction_type,
     uint num_random_splits, bool order_snps, uint max_depth, const std::vector<double>& regularization_factor,
-    bool regularization_usedepth,double missing_tree_weight, double missing_forest_weight) {
+    bool regularization_usedepth,double missing_tree_weight, double missing_forest_weight, uint imputation_method) {
 
   this->verbose_out = verbose_out;
 
@@ -149,7 +150,7 @@ void Forest::initR(std::unique_ptr<Data> input_data, uint mtry, uint num_trees, 
   init(MEM_DOUBLE, std::move(input_data), mtry, "", num_trees, seed, num_threads, importance_mode, min_node_size,
       prediction_mode, sample_with_replacement, unordered_variable_names, memory_saving_splitting, splitrule,
       predict_all, sample_fraction, alpha, minprop, holdout, prediction_type, num_random_splits, order_snps, max_depth,
-      regularization_factor, regularization_usedepth,missing_tree_weight,missing_forest_weight);
+      regularization_factor, regularization_usedepth,missing_tree_weight,missing_forest_weight,imputation_method);
 
   // Set variables to be always considered for splitting
   if (!always_split_variable_names.empty()) {
@@ -184,7 +185,7 @@ void Forest::init(MemoryMode memory_mode, std::unique_ptr<Data> input_data, uint
     bool memory_saving_splitting, SplitRule splitrule, bool predict_all, std::vector<double>& sample_fraction,
     double alpha, double minprop, bool holdout, PredictionType prediction_type, uint num_random_splits, bool order_snps,
     uint max_depth, const std::vector<double>& regularization_factor, bool regularization_usedepth,
-	double missing_tree_weight, double missing_forest_weight) {														   
+	double missing_tree_weight, double missing_forest_weight,uint imputation_method) {														   
 
   // Initialize data with memmode
   this->data = std::move(input_data);
@@ -232,6 +233,7 @@ void Forest::init(MemoryMode memory_mode, std::unique_ptr<Data> input_data, uint
   this->regularization_usedepth = regularization_usedepth;
   this->missing_tree_weight = missing_tree_weight;
   this->missing_forest_weight = missing_forest_weight;
+  this->imputation_method = imputation_method;
   // Set number of samples and variables
   num_samples = data->getNumRows();
   num_independent_variables = data->getNumCols();
@@ -482,7 +484,7 @@ void Forest::grow() {
         importance_mode, min_node_size, sample_with_replacement, memory_saving_splitting, splitrule, &case_weights,
         tree_manual_inbag, keep_inbag, &sample_fraction, alpha, minprop, holdout, num_random_splits, max_depth,
         &regularization_factor, regularization_usedepth, &split_varIDs_used,
-		missing_tree_weight);				 
+		missing_tree_weight,imputation_method);				 
   }
 
   // Init variable importance
@@ -971,7 +973,7 @@ void Forest::setSplitWeightVector(std::vector<std::vector<double>>& split_select
   deterministic_varIDs.reserve(num_weights);																						
 
   // Split up in deterministic and weighted variables, ignore zero weights
-  size_t num_zero_weights = 0;							  
+  //size_t num_zero_weights = 0;							  
   for (size_t i = 0; i < split_select_weights.size(); ++i) {
     size_t num_zero_weights = 0;
 
