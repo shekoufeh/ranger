@@ -46,6 +46,9 @@ print.ranger <- function(x, ...) {
   cat("Target node size:                ", x$min.node.size, "\n")
   cat("Variable importance mode:        ", x$importance.mode, "\n")
   cat("Splitrule:                       ", x$splitrule, "\n")
+  cat("Tree missing weight:             ", x$missing.tree.weight, "\n")
+  cat("Forest missing weight:           ", x$missing.forest.weight, "\n")
+  cat("Imputation method:               ", x$impute.missing, "\n")
   if (x$treetype == "Survival") {
     cat("Number of unique death times:    ", length(x$unique.death.times), "\n")
   }

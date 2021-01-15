@@ -23,7 +23,7 @@ namespace ranger {
 void ForestRegression::loadForest(size_t num_trees,
     std::vector<std::vector<std::vector<size_t>> >& forest_child_nodeIDs,
     std::vector<std::vector<size_t>>& forest_split_varIDs, std::vector<std::vector<double>>& forest_split_values,
-    std::vector<bool>& is_ordered_variable) {
+    std::vector<std::vector<double>>& forest_imputed_values,std::vector<bool>& is_ordered_variable, double missing_tree_weight, double missing_forest_weight, uint imputation_method) {
 
   this->num_trees = num_trees;
   data->setIsOrderedVariable(is_ordered_variable);
@@ -31,12 +31,15 @@ void ForestRegression::loadForest(size_t num_trees,
   // Create trees
   trees.reserve(num_trees);
   for (size_t i = 0; i < num_trees; ++i) {
-    trees.push_back(
-        make_unique<TreeRegression>(forest_child_nodeIDs[i], forest_split_varIDs[i], forest_split_values[i]));
+    trees.push_back(make_unique<TreeRegression>(forest_child_nodeIDs[i], forest_split_varIDs[i], forest_split_values[i],forest_imputed_values[i]));
   }
 
   // Create thread ranges
   equalSplit(thread_ranges, 0, num_trees - 1, num_threads);
+  
+  this->missing_tree_weight = missing_tree_weight;
+  this->missing_forest_weight = missing_forest_weight;
+  this->imputation_method = imputation_method;
 }
 
 void ForestRegression::initInternal() {
@@ -64,7 +67,11 @@ void ForestRegression::initInternal() {
 
   // Sort data if memory saving mode
   if (!memory_saving_splitting) {
-    data->sort();
+    if(imputation_method!=0){ // use imputation
+        data->imputeAndSort(imputation_method);
+    } else { // no imputation
+        data->sort();
+    }
   }
 }
 
@@ -97,15 +104,17 @@ void ForestRegression::predictInternal(size_t sample_idx) {
     for (size_t tree_idx = 0; tree_idx < num_trees; ++tree_idx) {
       if (prediction_type == TERMINALNODES) {
         predictions[0][sample_idx][tree_idx] = getTreePredictionTerminalNodeID(tree_idx, sample_idx,missing_count);
-		predictions_missing_count[0][sample_idx][tree_idx] = missing_count;															   
+		    predictions_missing_count[0][sample_idx][tree_idx] = missing_count;															   
       } else {
         predictions[0][sample_idx][tree_idx] = getTreePrediction(tree_idx, sample_idx,missing_count);
       }
+    
+      Rprintf(">>Tree %i, sample %i, Prediction %f  \n", tree_idx,sample_idx,predictions[0][sample_idx][tree_idx]);
     }
   } else {
     // Mean over trees
     double prediction_sum = 0;
-	double sum_weights = 0;
+  	double sum_weights = 0;
     double pred = 0;
     double weight = 0;					   			  
     for (size_t tree_idx = 0; tree_idx < num_trees; ++tree_idx) {
@@ -114,6 +123,7 @@ void ForestRegression::predictInternal(size_t sample_idx) {
       prediction_sum += (pred*weight);
       sum_weights += weight;				
     }
+ //   Rprintf("Prediction sum %f , sum weight %f \n", prediction_sum, sum_weights);
     predictions[0][0][sample_idx] = prediction_sum / sum_weights;
   }
 }
@@ -135,6 +145,7 @@ void ForestRegression::computePredictionErrorInternal() {
     for (size_t sample_idx = 0; sample_idx < trees[tree_idx]->getNumSamplesOob(); ++sample_idx) {
       size_t sampleID = trees[tree_idx]->getOobSampleIDs()[sample_idx];
       double value = getTreePrediction(tree_idx, sample_idx, missing_count);
+     // Rprintf("In computePredictionErrorInternal: tree %i, sample %i, missing_count %i, value %f \n",tree_idx, sample_idx, missing_count,value);
       weight = pow(Forest::missing_forest_weight,missing_count);
       predictions[0][0][sampleID] += (weight*value);
       weighted_samples_oob_count[sampleID]+=weight;										   
@@ -152,7 +163,9 @@ void ForestRegression::computePredictionErrorInternal() {
       double predicted_value = predictions[0][0][i];
       double real_value = data->get_y(i, 0);
       overall_prediction_error += (predicted_value - real_value) * (predicted_value - real_value);
+     // Rprintf("In compute not NaN \n");
     } else {
+     // Rprintf("In compute NAAAAAAAAAAAAAAAAAN \n");
       predictions[0][0][i] = NAN;
     }
   }
@@ -253,14 +266,15 @@ void ForestRegression::loadFromFileInternal(std::ifstream& infile) {
     readVector1D(split_varIDs, infile);
     std::vector<double> split_values;
     readVector1D(split_values, infile);
-
+    std::vector<double> imputed_values;
+    readVector1D(imputed_values, infile);
     // If dependent variable not in test data, throw error
     if (num_variables_saved != num_independent_variables) {
       throw std::runtime_error("Number of independent variables in data does not match with the loaded forest.");
     }
 
     // Create tree
-    trees.push_back(make_unique<TreeRegression>(child_nodeIDs, split_varIDs, split_values));
+    trees.push_back(make_unique<TreeRegression>(child_nodeIDs, split_varIDs, split_values,imputed_values));
   }
 }
 

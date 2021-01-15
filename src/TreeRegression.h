@@ -25,7 +25,7 @@ public:
 
   // Create from loaded forest
   TreeRegression(std::vector<std::vector<size_t>>& child_nodeIDs, std::vector<size_t>& split_varIDs,
-      std::vector<double>& split_values);
+      std::vector<double>& split_values, std::vector<double>& imputed_values);
 
   TreeRegression(const TreeRegression&) = delete;
   TreeRegression& operator=(const TreeRegression&) = delete;
@@ -58,12 +58,12 @@ private:
   // Called by splitNodeInternal(). Sets split_varIDs and split_values.
   bool findBestSplit(size_t nodeID, std::vector<size_t>& possible_split_varIDs);
   void findBestSplitValueSmallQ(size_t nodeID, size_t varID, double sum_node, size_t num_samples_node,
-      double& best_value, size_t& best_varID, double& best_decrease);
+      double& best_value, size_t& best_varID, double& best_decrease, double& best_imputed);
   void findBestSplitValueSmallQ(size_t nodeID, size_t varID, double sum_node, size_t num_samples_node,
       double& best_value, size_t& best_varID, double& best_decrease, std::vector<double> possible_split_values,
-      std::vector<double>& sums, std::vector<size_t>& counter);
+      std::vector<double>& sums, std::vector<size_t>& counter, double& best_imputed);
   void findBestSplitValueLargeQ(size_t nodeID, size_t varID, double sum_node, size_t num_samples_node,
-      double& best_value, size_t& best_varID, double& best_decrease);
+      double& best_value, size_t& best_varID, double& best_decrease, double& best_imputed);
   void findBestSplitValueUnordered(size_t nodeID, size_t varID, double sum_node, size_t num_samples_node,
       double& best_value, size_t& best_varID, double& best_decrease);
 

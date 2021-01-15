@@ -30,7 +30,7 @@ TreeClassification::TreeClassification(std::vector<double>* class_values, std::v
 TreeClassification::TreeClassification(std::vector<std::vector<size_t>>& child_nodeIDs,
     std::vector<size_t>& split_varIDs, std::vector<double>& split_values, std::vector<double>* class_values,
     std::vector<uint>* response_classIDs) :
-    Tree(child_nodeIDs, split_varIDs, split_values), class_values(class_values), response_classIDs(response_classIDs), sampleIDs_per_class(
+    Tree(child_nodeIDs, split_varIDs, split_values,imputed_values), class_values(class_values), response_classIDs(response_classIDs), sampleIDs_per_class(
         0), class_weights(0), counter { }, counter_per_class { } {
 }
 

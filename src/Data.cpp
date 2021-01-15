@@ -236,6 +236,41 @@ double Data::compute_median(std::vector<double> &values) const
   }
 }
 
+
+std::vector<double> Data::get_median_imputed_unique_vector(double &out_median, std::vector<size_t> &sampleIDs,
+                                       size_t split_varID, size_t start_pos, size_t end_pos) const
+{
+  size_t pos = start_pos;
+  bool missVal = false;
+  double sampleVal;
+  std::vector<double> nonMissingVals;
+  while (pos < end_pos) {
+    size_t sampleID = sampleIDs[pos];
+    sampleVal = get_x(sampleID, split_varID);
+    missVal = std::isnan(sampleVal);
+    if(!missVal){
+      nonMissingVals.push_back(sampleVal);
+    }
+    ++pos;
+  }
+  // for median imputation
+  double median = compute_median(nonMissingVals);
+  out_median = median;
+  
+  // create sorted unique_vector, first add the imputed data
+  nonMissingVals.push_back(median);
+  //std::vector<double> unique_values(nonMissingVals)
+  auto cmp=[](const double &d1, const double &d2){
+    if (std::isnan(d1)) return false;
+    if (std::isnan(d2)) return true;
+    return d1<d2;
+  };  
+  std::sort(nonMissingVals.begin(), nonMissingVals.end(),cmp);
+  nonMissingVals.erase(unique(nonMissingVals.begin(), nonMissingVals.end()), nonMissingVals.end());
+  
+  return nonMissingVals;
+}
+
 double Data::get_median_of_non_missing(std::vector<size_t> &sampleIDs,
                                          size_t split_varID, size_t start_pos, size_t end_pos) const
 {
@@ -299,33 +334,33 @@ void Data::getMinMaxValues(double& min, double&max, std::vector<size_t>& sampleI
 }
 
 void Data::sort() {
-
+  
   // Reserve memory
   index_data.resize(num_cols_no_snp * num_rows);
-
+  
   // For all columns, get unique values and save index for each observation
   for (size_t col = 0; col < num_cols_no_snp; ++col) {
-
+    
     // Get all unique values
     std::vector<double> unique_values(num_rows);
     for (size_t row = 0; row < num_rows; ++row) {
       unique_values[row] = get_x(row, col);
     }
-	auto cmp=[](const double &d1, const double &d2){
+    auto cmp=[](const double &d1, const double &d2){
       if (std::isnan(d1)) return false;
       if (std::isnan(d2)) return true;
       return d1<d2;
     };  
     std::sort(unique_values.begin(), unique_values.end(),cmp);
     unique_values.erase(unique(unique_values.begin(), unique_values.end()), unique_values.end());
-
+    
     // Get index of unique value
     for (size_t row = 0; row < num_rows; ++row) {
       size_t idx = std::lower_bound(unique_values.begin(), unique_values.end(), get_x(row, col))
-          - unique_values.begin();
+      - unique_values.begin();
       index_data[col * num_rows + row] = idx;
     }
-
+    
     // Save unique values
     unique_data_values.push_back(unique_values);
     if (unique_values.size() > max_num_unique_values) {
@@ -333,6 +368,129 @@ void Data::sort() {
     }
   }
 }
+
+void Data::imputeAndSort(uint imputation_method){
+  
+  // Reserve memory
+  index_data.resize(num_cols_no_snp * num_rows);
+  bool missingValExists;
+  bool nonMissingValExists;
+  double value;
+  std::vector<double> nonMissingValues;
+  std::vector<size_t> missingLocations;
+  // For all columns, get unique values and save index for each observation
+  for (size_t col = 0; col < num_cols_no_snp; ++col) {
+    missingValExists = false;
+    nonMissingValExists = false;
+    nonMissingValues.clear();
+    missingLocations.clear();
+    // Get all unique values
+    std::vector<double> unique_values(num_rows);
+    for (size_t row = 0; row < num_rows; ++row) {
+      value = get_x(row, col);
+      if(std::isnan(value)){
+        missingValExists = true;
+        missingLocations.push_back(row);
+      }else{
+        nonMissingValExists = true;
+        nonMissingValues.push_back(value);
+      }
+      unique_values[row] = value;
+    }
+    std::vector<double> unique_imputed_values(unique_values);
+    
+    // replace missing with 
+    
+    if(imputation_method == 1){
+      double median = compute_median(nonMissingValues);
+      
+      // copy the median in missing locations
+      size_t endIt = missingLocations.size();
+      for (size_t row = 0; row < endIt; ++row) {
+        unique_imputed_values[missingLocations[row]] = median; 
+      }
+      all_imputed_data.push_back(unique_imputed_values);
+     }
+    
+    /////////////////////////////////////////////
+    // Perform sorting based on the original data
+    /////////////////////////////////////////////
+    auto cmp=[](const double &d1, const double &d2){
+      if (std::isnan(d1)) return false;
+      if (std::isnan(d2)) return true;
+      return d1<d2;
+    };  
+    std::sort(unique_values.begin(), unique_values.end(),cmp);
+    unique_values.erase(unique(unique_values.begin(), unique_values.end()), unique_values.end());
+    
+    // Get index of unique value
+    for (size_t row = 0; row < num_rows; ++row) {
+      size_t idx = std::lower_bound(unique_values.begin(), unique_values.end(), get_x(row, col))
+      - unique_values.begin();
+      index_data[col * num_rows + row] = idx;
+    }
+   // Rprintf("***********  \n");
+    // Save unique values
+    unique_data_values.push_back(unique_values);
+    if (unique_values.size() > max_num_unique_values) {
+      max_num_unique_values = unique_values.size();
+    }
+    /*
+    size_t imax=unique_data_values.size();
+    for (size_t col = 0; col < imax; ++col) {
+      size_t jmax=unique_data_values[col].size();
+      Rprintf("---  \n");
+      for (size_t row = 0; row < jmax; ++row) {
+        Rprintf("  %f   ",unique_data_values[col][row]);
+      }
+      Rprintf(" \n");
+    }
+    Rprintf("<><><><><><><><>  \n");
+     */
+    ////////////////////////////////////////
+    // Perform sorting based on imputed data
+    ////////////////////////////////////////
+    
+      
+    index_imputed_data.resize(num_cols_no_snp * num_rows);
+    //std::vector<double> cpy_unique_imputed_values(unique_imputed_values);
+    std::sort(unique_imputed_values.begin(), unique_imputed_values.end(),cmp);
+    unique_imputed_values.erase(unique(unique_imputed_values.begin(), unique_imputed_values.end()), unique_imputed_values.end());
+    
+    // Get index of imputed unique value
+    for (size_t row = 0; row < num_rows; ++row) {
+      value = get_x(row, col);
+      if(std::isnan(value)){
+     //   Rprintf("!!!!!!Row %i, Col % i, Value before: %f \n",row,col,value);
+        value = all_imputed_data[col][row];
+     //   Rprintf("!!!!!Value after: %f \n",value);
+      }
+      size_t idx = std::lower_bound(unique_imputed_values.begin(), unique_imputed_values.end(), value)
+      - unique_imputed_values.begin();
+      index_imputed_data[col * num_rows + row] = idx;
+    }
+
+    // Save unique values
+    unique_imputed_data_values.push_back(unique_imputed_values);
+    if (unique_imputed_values.size() > max_num_unique_values) {
+      max_num_unique_imputed_values = unique_imputed_values.size();
+    }
+    
+  }
+  
+  //size_t imax=unique_imputed_data_values.size();
+  //for (size_t col = 0; col < imax; ++col) {
+  //  size_t jmax=unique_imputed_data_values[col].size();
+  //  Rprintf("---  \n");
+  //  for (size_t row = 0; row < jmax; ++row) {
+  //    Rprintf("  %f   ",unique_imputed_data_values[col][row]);
+  //  }
+  //}
+  
+  //Rprintf("\n Row: %i  Col: %i \n",unique_imputed_data_values.size(), unique_imputed_data_values[0].size());
+}
+
+
 
 // TODO: Implement ordering for multiclass and survival
 // #nocov start (cannot be tested anymore because GenABEL not on CRAN)

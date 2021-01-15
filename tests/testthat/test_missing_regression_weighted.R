@@ -17,16 +17,16 @@ if(TRUE)
   drops <- c("Species")
   iris<-iris[ , !(names(iris) %in% drops)]
 }
-
+iris<-iris[1:20,]
 ## Initialize the random forest for regression
 rg.reg <- ranger(Sepal.Length ~ .,num.trees=500, num.threads = 1, data = iris,seed = 480,
                  missing.tree.weight=0.5,missing.forest.weight=0.2)
 
-
+predict(rg.reg,iris)
 ## Basic tests (for all random forests equal)
-test_that("regression result is of class ranger with 14 elements", {
+test_that("regression result is of class ranger with 17 elements", {
   expect_is(rg.reg, "ranger")
-  expect_equal(length(rg.reg), 14)
+  expect_equal(length(rg.reg), 17)
 })
 
 test_that("regression prediction returns numeric vector", {

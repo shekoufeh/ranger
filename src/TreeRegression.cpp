@@ -22,8 +22,8 @@
 namespace ranger {
 
 TreeRegression::TreeRegression(std::vector<std::vector<size_t>>& child_nodeIDs, std::vector<size_t>& split_varIDs,
-    std::vector<double>& split_values) :
-    Tree(child_nodeIDs, split_varIDs, split_values), counter(0), sums(0) {
+    std::vector<double>& split_values, std::vector<double>& imputed_values) :
+    Tree(child_nodeIDs, split_varIDs, split_values,imputed_values), counter(0), sums(0) {
 }
 
 void TreeRegression::allocateMemory() {
@@ -48,13 +48,15 @@ double TreeRegression::estimate(size_t nodeID) {
   size_t num_samples_in_node = end_pos[nodeID] - start_pos[nodeID];
   double sum_weights = 0;
   double weight = 0;						 
+  
   for (size_t pos = start_pos[nodeID]; pos < end_pos[nodeID]; ++pos) {
     size_t sampleID = sampleIDs[pos];
 	// Per missing encounter * 0.5
-    weight = pow(Tree::missing_tree_weight,Tree::missing_count[sampleID]);
+    weight = pow(missing_tree_weight,missing_count[sampleID]);
     sum_responses_in_node += (weight * data->get_y(sampleID, 0));
     sum_weights += weight; 				   
   }
+  //Rprintf("number of samples in node: %i , estimate val: %f , denom: %f \n", num_samples_in_node, sum_responses_in_node,(double) sum_weights);
   return (sum_responses_in_node / (double) sum_weights);
 }
 
@@ -65,7 +67,7 @@ void TreeRegression::appendToFileInternal(std::ofstream& file) { // #nocov start
 bool TreeRegression::splitNodeInternal(size_t nodeID, std::vector<size_t>& possible_split_varIDs) {
 
   size_t num_samples_node = end_pos[nodeID] - start_pos[nodeID];
-
+ // Rprintf("====>>> NodeID: %i \n", nodeID);
   // Stop if all x values are missing 
   bool allVarsAreMissing = true;
   for (size_t pos = start_pos[nodeID]; pos < end_pos[nodeID]; ++pos) {
@@ -81,11 +83,13 @@ bool TreeRegression::splitNodeInternal(size_t nodeID, std::vector<size_t>& possi
   }
   if(allVarsAreMissing){
     split_values[nodeID] = estimate(nodeID);
+   // Rprintf("All are missing values : nodeID %i, split_value %f \n",nodeID,split_values[nodeID]);
     return true;
   }									  
   // Stop if maximum node size or depth reached
   if (num_samples_node <= min_node_size || (nodeID >= last_left_nodeID && max_depth > 0 && depth >= max_depth)) {
     split_values[nodeID] = estimate(nodeID);
+   // Rprintf("Small num of samples \n");
     return true;
   }
 
@@ -103,6 +107,7 @@ bool TreeRegression::splitNodeInternal(size_t nodeID, std::vector<size_t>& possi
   }
   if (pure) {
     split_values[nodeID] = pure_value;
+    //Rprintf("Pure!! \n");
     return true;
   }
 
@@ -120,6 +125,7 @@ bool TreeRegression::splitNodeInternal(size_t nodeID, std::vector<size_t>& possi
 
   if (stop) {
     split_values[nodeID] = estimate(nodeID);
+   // Rprintf("Stoping \n");
     return true;
   }
 
@@ -155,7 +161,7 @@ bool TreeRegression::findBestSplit(size_t nodeID, std::vector<size_t>& possible_
   double best_decrease = -1;
   size_t best_varID = 0;
   double best_value = 0;
-
+  double best_imputed = 0;
   // Compute sum of responses in node
   double sum_node = 0;
   for (size_t pos = start_pos[nodeID]; pos < end_pos[nodeID]; ++pos) {
@@ -171,14 +177,14 @@ bool TreeRegression::findBestSplit(size_t nodeID, std::vector<size_t>& possible_
 
       // Use memory saving method if option set
       if (memory_saving_splitting) {
-        findBestSplitValueSmallQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease);
+        findBestSplitValueSmallQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease,best_imputed);
       } else {
         // Use faster method for both cases
         double q = (double) num_samples_node / (double) data->getNumUniqueDataValues(varID);
         if (q < Q_THRESHOLD) {
-          findBestSplitValueSmallQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease);
+          findBestSplitValueSmallQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease, best_imputed);
         } else {
-          findBestSplitValueLargeQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease);
+          findBestSplitValueLargeQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease, best_imputed);
         }
       }
     } else {
@@ -194,6 +200,7 @@ bool TreeRegression::findBestSplit(size_t nodeID, std::vector<size_t>& possible_
   // Save best values
   split_varIDs[nodeID] = best_varID;
   split_values[nodeID] = best_value;
+  imputed_values[nodeID] = best_imputed;
 
   // Compute decrease of impurity for this node and add to variable importance if needed
   if (importance_mode == IMP_GINI || importance_mode == IMP_GINI_CORRECTED) {
@@ -207,7 +214,7 @@ bool TreeRegression::findBestSplit(size_t nodeID, std::vector<size_t>& possible_
 }
 
 void TreeRegression::findBestSplitValueSmallQ(size_t nodeID, size_t varID, double sum_node, size_t num_samples_node,
-    double& best_value, size_t& best_varID, double& best_decrease) {
+    double& best_value, size_t& best_varID, double& best_decrease, double& best_imputed) {
 
   // Create possible split values
   std::vector<double> possible_split_values;
@@ -224,28 +231,49 @@ void TreeRegression::findBestSplitValueSmallQ(size_t nodeID, size_t varID, doubl
     std::vector<double> sums_right(num_splits);
     std::vector<size_t> n_right(num_splits);
     findBestSplitValueSmallQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease,
-        possible_split_values, sums_right, n_right);
+        possible_split_values, sums_right, n_right,best_imputed);
   } else {
     std::fill_n(sums.begin(), num_splits, 0);
     std::fill_n(counter.begin(), num_splits, 0);
     findBestSplitValueSmallQ(nodeID, varID, sum_node, num_samples_node, best_value, best_varID, best_decrease,
-        possible_split_values, sums, counter);
+        possible_split_values, sums, counter,best_imputed);
   }
 }
 
 void TreeRegression::findBestSplitValueSmallQ(size_t nodeID, size_t varID, double sum_node, size_t num_samples_node,
     double& best_value, size_t& best_varID, double& best_decrease, std::vector<double> possible_split_values,
-    std::vector<double>& sums, std::vector<size_t>& counter) {
+    std::vector<double>& sums, std::vector<size_t>& counter, double& best_imputed) {
 
   double sumNodeNonMissing=0;
   size_t num_missings=0;
-  bool flag=true;							 			 
+  size_t num_unique;
+  double imputedVal = 0;
+  std::vector<double> uniqueimputedData;
+  bool flag=true;		
+  size_t idx;
+  double tmpVal = 0;
+  if(imputation_method==1){ // median imputation
+    // Perform local imputation in node, find unique values, find num uniques
+    uniqueimputedData = data->get_median_imputed_unique_vector(imputedVal, sampleIDs,
+                                                               varID, start_pos[nodeID],  end_pos[nodeID]);
+  }
   for (size_t pos = start_pos[nodeID]; pos < end_pos[nodeID]; ++pos) {
     size_t sampleID = sampleIDs[pos];
     size_t idx = std::lower_bound(possible_split_values.begin(), possible_split_values.end(),
         data->get_x(sampleID, varID)) - possible_split_values.begin();
-	//Skip if missing value
-    if(std::isnan(data->get_x(sampleID, varID))){
+	
+	  if(imputation_method==1){
+  	  tmpVal = data->get_x(sampleID, varID);
+  	  if(std::isnan(tmpVal)){
+  	    tmpVal = imputedVal;
+  	  }
+  	  idx = std::lower_bound(uniqueimputedData.begin(), uniqueimputedData.end(), tmpVal)
+  	    - uniqueimputedData.begin();
+  	}else{
+  	  idx = data->getImputedIndex(sampleID, varID);
+  	}
+	  //Skip if missing value
+    if(imputation_method == 0 && std::isnan(data->get_x(sampleID, varID))){
       ++num_missings;
       continue;
     }
@@ -274,7 +302,7 @@ void TreeRegression::findBestSplitValueSmallQ(size_t nodeID, size_t varID, doubl
     if (n_right == 0 || n_left==0) {
       break;
     }
-    if(std::isnan(data->getUniqueDataValue(varID, i)))
+    if(imputation_method == 0 && std::isnan(data->getUniqueDataValue(varID, i)))
       continue;		   
     double sum_right = sumNodeNonMissing - sum_left;
     double decrease = sum_left * sum_left / (double) n_left + sum_right * sum_right / (double) n_right;
@@ -284,44 +312,105 @@ void TreeRegression::findBestSplitValueSmallQ(size_t nodeID, size_t varID, doubl
 
     // If better than before, use this
     if (decrease > best_decrease) {
-	  size_t j = i+1;
+	    size_t j = i+1;
       
-      if(std::isnan(data->getUniqueDataValue(varID, i)))
+      if(imputation_method == 0 && std::isnan(data->getUniqueDataValue(varID, i)))
         continue;
 		
-	  best_varID = varID;
+  	  best_varID = varID;
       best_decrease = decrease;
-	  if(!std::isnan(data->getUniqueDataValue(varID, j)))
-      {
-      // Use mid-point split
-      best_value = (possible_split_values[i] + possible_split_values[i + 1]) / 2;
-
-	  // Use smaller value if average is numerically the same as the larger value
-      if (best_value == possible_split_values[i + 1]) {
-        best_value = possible_split_values[i];
-      }
-      }else{
-        best_value = data->getUniqueDataValue(varID, i);
+      
+      
+      if(imputation_method == 0){ // if no imputation is used
+    	  if(!std::isnan(data->getUniqueDataValue(varID, j)))
+          {
+          // Use mid-point split
+          best_value = (possible_split_values[i] + possible_split_values[i + 1]) / 2;
+    
+    	    // Use smaller value if average is numerically the same as the larger value
+          if (best_value == possible_split_values[i + 1]) {
+            best_value = possible_split_values[i];
+          }
+          }else{
+            best_value = data->getUniqueDataValue(varID, i);
+          }
+      }else if(imputation_method==1){//in case missing values are imputed using median
+        best_imputed = imputedVal;
+        // Use mid-point split
+        best_value = (uniqueimputedData[i] + uniqueimputedData[j]) / 2.0;
+        
+        // Use smaller value if average is numerically the same as the larger value
+        if (best_value == uniqueimputedData[j]) {
+          best_value = uniqueimputedData[i];
+        }
+      }else{ // in case missing values are imputed using other methods
+        best_imputed = imputedVal;
+        // Use mid-point split
+        best_value = (data->getUniqueImputedDataValue(varID, i) + data->getUniqueImputedDataValue(varID, j)) / 2.0;
+        
+        // Use smaller value if average is numerically the same as the larger value
+        if (best_value == data->getUniqueImputedDataValue(varID, j)) {
+          best_value = data->getUniqueImputedDataValue(varID, i);
+        }
+        // Rprintf("Best value: %f \n",best_value);
       }
     }
   }
 }
 
 void TreeRegression::findBestSplitValueLargeQ(size_t nodeID, size_t varID, double sum_node, size_t num_samples_node,
-    double& best_value, size_t& best_varID, double& best_decrease) {
-
+    double& best_value, size_t& best_varID, double& best_decrease, double& best_imputed) {
+  size_t num_unique;
+  double imputedVal = 0;
+  std::vector<double> uniqueimputedData;
   // Set counters to 0
-  size_t num_unique = data->getNumUniqueDataValues(varID);
+  if(imputation_method==0){
+    num_unique = data->getNumUniqueDataValues(varID);
+  }else if(imputation_method==1){ // median imputation
+    // Perform local imputation in node, find unique values, find num uniques
+    uniqueimputedData = data->get_median_imputed_unique_vector(imputedVal, sampleIDs,
+                                     varID, start_pos[nodeID],  end_pos[nodeID]);
+  //  Rprintf("Median %f\n",imputedVal);
+    num_unique = uniqueimputedData.size();
+   // num_unique = data->getNumUniqueImputedDataValues(varID);
+  }else{
+    num_unique = data->getNumUniqueDataValues(varID);
+    // TODO: Add alternative imputation methods
+    Rprintf("TO DO Add alternative imputation methods\n");
+  }
+  // if imputation, then add new numbers to the set of new values
+  //Rprintf("Num of unique: %i , VarID: %i, NodeID: %i \n",num_unique, varID, nodeID);
+  //imputation_method =0;
   std::fill_n(counter.begin(), num_unique, 0);
   std::fill_n(sums.begin(), num_unique, 0);
   double sumNodeNonMissing=0;
   size_t num_missings=0;
-  bool flag=true;				  
+  bool flag=true;		
+  size_t index;
+  size_t nodeOfInterest = -1;
+  double tmpVal;
+  if(nodeID==nodeOfInterest){
+    Rprintf("Samples in node of interest \n");
+    }
   for (size_t pos = start_pos[nodeID]; pos < end_pos[nodeID]; ++pos) {
     size_t sampleID = sampleIDs[pos];
-    size_t index = data->getIndex(sampleID, varID);
+    if(imputation_method==0){
+      index = data->getIndex(sampleID, varID);
+    }else if(imputation_method==1){
+      tmpVal = data->get_x(sampleID, varID);
+      if(std::isnan(tmpVal)){
+        tmpVal = imputedVal;
+      }
+      index = std::lower_bound(uniqueimputedData.begin(), uniqueimputedData.end(), tmpVal)
+      - uniqueimputedData.begin();
+    }else{
+      index = data->getImputedIndex(sampleID, varID);
+    }
+    if(nodeID==nodeOfInterest){
+      Rprintf("index: %i, %f, ",index, data->get_x(sampleID, varID));
+    }
     // Skip if missing
-    if(std::isnan(data->get_x(sampleID, varID))){
+    if(imputation_method == 0 && std::isnan(data->get_x(sampleID, varID))){
       ++num_missings;
       continue;
     }
@@ -330,10 +419,23 @@ void TreeRegression::findBestSplitValueLargeQ(size_t nodeID, size_t varID, doubl
     sums[index] += data->get_y(sampleID, 0);
     ++counter[index];
   }
-
+  if(nodeID==nodeOfInterest){
+    //std::vector<double> ttmp=data->getUniqueImputed(varID);
+    std::vector<double> ttmp=uniqueimputedData;
+    Rprintf("\n=== Unique Imputed Data for varID:%i \n",varID);
+    for(size_t i=0;i<ttmp.size();++i){
+      Rprintf("%i : %f,",i,ttmp[i]);
+    }
+    Rprintf("\n");
+    Rprintf("==== Counters =====\n");
+    for(size_t i=0;i<counter.size();++i){
+      Rprintf("%i, ",counter[i]);
+    }
+    Rprintf("\n");
+  }
   size_t n_left = 0;
   double sum_left = 0;
-
+  
   // Compute decrease of impurity for each split
   for (size_t i = 0; i < num_unique - 1; ++i) {
 
@@ -350,11 +452,13 @@ void TreeRegression::findBestSplitValueLargeQ(size_t nodeID, size_t varID, doubl
     if (n_right == 0 || n_left==0) {
       break;
     }
-    if(std::isnan(data->getUniqueDataValue(varID, i)))
+    if(imputation_method == 0 && std::isnan(data->getUniqueDataValue(varID, i)))
       continue;  
     double sum_right = sumNodeNonMissing - sum_left;
     double decrease = sum_left * sum_left / (double) n_left + sum_right * sum_right / (double) n_right;
 
+  //  Rprintf("Num_left: %i , num_right: %i , total: %i \n",n_left, n_right, num_samples_node);
+    
     // Regularization
     regularize(decrease, varID);
 
@@ -366,25 +470,43 @@ void TreeRegression::findBestSplitValueLargeQ(size_t nodeID, size_t varID, doubl
         ++j;
       }
 
-      if(std::isnan(data->getUniqueDataValue(varID, i)))
+      if(imputation_method == 0 && std::isnan(data->getUniqueDataValue(varID, i)))
         continue;
       best_varID = varID;
       best_decrease = decrease;
-      if(!std::isnan(data->getUniqueDataValue(varID, j)))
-        {
-          
-          // Use mid-point split
-          best_value = (data->getUniqueDataValue(varID, i) + data->getUniqueDataValue(varID, j)) / 2.0;
-          
-          // Use smaller value if average is numerically the same as the larger value
-          if (best_value == data->getUniqueDataValue(varID, j)) {
-            best_value = data->getUniqueDataValue(varID, i);
+      
+      if(imputation_method==0){ // if no imputation
+        if(!std::isnan(data->getUniqueDataValue(varID, j)))
+          {
+            // Use mid-point split
+            best_value = (data->getUniqueDataValue(varID, i) + data->getUniqueDataValue(varID, j)) / 2.0;
+            // Use smaller value if average is numerically the same as the larger value
+            if (best_value == data->getUniqueDataValue(varID, j)) {
+              best_value = data->getUniqueDataValue(varID, i);
+            }
+          }else{
+          best_value = data->getUniqueDataValue(varID, i);
           }
+      }else if(imputation_method==1){//in case missing values are imputed using median
+        best_imputed = imputedVal;
+        // Use mid-point split
+        best_value = (uniqueimputedData[i] + uniqueimputedData[j]) / 2.0;
+        
+        // Use smaller value if average is numerically the same as the larger value
+        if (best_value == uniqueimputedData[j]) {
+          best_value = uniqueimputedData[i];
         }
-      else
-        {
-        best_value = data->getUniqueDataValue(varID, i);
+      }else{ // in case missing values are imputed using other methods
+        best_imputed = imputedVal;
+        // Use mid-point split
+        best_value = (data->getUniqueImputedDataValue(varID, i) + data->getUniqueImputedDataValue(varID, j)) / 2.0;
+        
+        // Use smaller value if average is numerically the same as the larger value
+        if (best_value == data->getUniqueImputedDataValue(varID, j)) {
+          best_value = data->getUniqueImputedDataValue(varID, i);
         }
+       // Rprintf("Best value: %f \n",best_value);
+      }
     }
   }
 }

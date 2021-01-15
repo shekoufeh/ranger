@@ -1,5 +1,4 @@
 ## Tests for random forests for regression with missing values using median
-
 library(ranger)
 context("ranger_reg")
 rm(list=ls())
@@ -13,20 +12,20 @@ if(TRUE)
     iris[sample(1:nrow(iris),50,replace=F),3]<-NA
     iris[sample(1:nrow(iris),50,replace=F),5]<-NA
   }
-  # iris['Empty']<-NA
+  iris['Empty']<-NA
   drops <- c("Species")
   iris<-iris[ , !(names(iris) %in% drops)]
 }
-#iris<-iris[1:10,]
 ## Initialize the random forest for regression
-rg.reg <- ranger(Sepal.Length ~ .,num.trees=500, replace=FALSE,num.threads = 1, data = iris,seed = 480,
+rg.reg <- ranger(Sepal.Length ~ .,num.trees=500, data = iris,seed = 840,
                  impute.missing="median")
 
 
+
 ## Basic tests (for all random forests equal)
-test_that("regression result is of class ranger with 14 elements", {
+test_that("regression result is of class ranger with 17 elements", {
   expect_is(rg.reg, "ranger")
-  expect_equal(length(rg.reg), 14)
+  expect_equal(length(rg.reg), 17)
 })
 
 test_that("regression prediction returns numeric vector", {

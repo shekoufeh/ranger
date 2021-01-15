@@ -29,7 +29,7 @@ public:
 
   // Create from loaded forest
   Tree(std::vector<std::vector<size_t>>& child_nodeIDs, std::vector<size_t>& split_varIDs,
-      std::vector<double>& split_values);
+      std::vector<double>& split_values, std::vector<double>& imputed_values);
 
   virtual ~Tree() = default;
 
@@ -61,6 +61,9 @@ public:
   }
   const std::vector<double>& getSplitValues() const {
     return split_values;
+  }
+  const std::vector<double>& getImputedValues() const {
+    return imputed_values;
   }
   const std::vector<size_t>& getSplitVarIDs() const {
     return split_varIDs;
@@ -176,6 +179,9 @@ protected:
   // Value to split at for each node, for now only binary split
   // For terminal nodes the prediction value is saved here
   std::vector<double> split_values;
+  
+  // imputed value at each node, this value will be used in case of missing data
+  std::vector<double> imputed_values;
 
   // Vector of left and right child node IDs, 0 for no child
   std::vector<std::vector<size_t>> child_nodeIDs;

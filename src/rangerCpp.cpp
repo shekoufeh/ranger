@@ -65,7 +65,7 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
 	double missing_tree_weight, double missing_forest_weight, uint imputation_method) {
   
   Rcpp::List result;
-
+  Rprintf("Inside rCCP\n");
   try {
     std::unique_ptr<Forest> forest { };
     std::unique_ptr<Data> data { };
@@ -106,7 +106,7 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
       num_rows = input_x.nrow();
       num_cols = input_x.ncol();
     }
-
+    Rprintf("Initializing data\n");
     // Initialize data 
     if (use_sparse_data) {
       data = make_unique<DataSparse>(sparse_x, input_y, variable_names, num_rows, num_cols);
@@ -147,7 +147,7 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
     ImportanceMode importance_mode = (ImportanceMode) importance_mode_r;
     SplitRule splitrule = (SplitRule) splitrule_r;
     PredictionType prediction_type = (PredictionType) prediction_type_r;
-
+    Rprintf("Before initR \n");
     // Init Ranger
     forest->initR(std::move(data), mtry, num_trees, verbose_out, seed, num_threads,
         importance_mode, min_node_size, split_select_weights, always_split_variable_names,
@@ -161,6 +161,7 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
       std::vector<std::vector<std::vector<size_t>> > child_nodeIDs = loaded_forest["child.nodeIDs"];
       std::vector<std::vector<size_t>> split_varIDs = loaded_forest["split.varIDs"];
       std::vector<std::vector<double>> split_values = loaded_forest["split.values"];
+      std::vector<std::vector<double>> imputed_values = loaded_forest["imputed.values"];
       std::vector<bool> is_ordered = loaded_forest["is.ordered"];
 
       if (treetype == TREE_CLASSIFICATION) {
@@ -170,7 +171,9 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
             is_ordered);
       } else if (treetype == TREE_REGRESSION) {
         auto& temp = dynamic_cast<ForestRegression&>(*forest);
-        temp.loadForest(num_trees, child_nodeIDs, split_varIDs, split_values, is_ordered);
+        Rprintf("In rangerCPP forest loading, %f, %f, %i\n",missing_tree_weight,missing_forest_weight,imputation_method);
+        temp.loadForest(num_trees, child_nodeIDs, split_varIDs, split_values, imputed_values, is_ordered,missing_tree_weight,missing_forest_weight,imputation_method);
+        Rprintf("In rangerCPP forest loading FINISHED LOADING\n");
       } else if (treetype == TREE_SURVIVAL) {
         std::vector<std::vector<std::vector<double>> > chf = loaded_forest["chf"];
         std::vector<double> unique_timepoints = loaded_forest["unique.death.times"];
@@ -194,7 +197,7 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
         temp.setClassWeights(class_weights);
       }
     }
-
+    Rprintf("before running forest\n");
     // Run Ranger
     forest->run(false, oob_error);
 
@@ -205,22 +208,29 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
             << std::endl;
       }
     }
-
+    Rprintf(" After running forest \n");
     // Use first non-empty dimension of predictions
     const std::vector<std::vector<std::vector<double>>>& predictions = forest->getPredictions();
     if (predictions.size() == 1) {
       if (predictions[0].size() == 1) {
+        Rprintf(" prediction style 1 \n");
         result.push_back(forest->getPredictions()[0][0], "predictions");
       } else {
+        Rprintf(" prediction style 2 \n");
         result.push_back(forest->getPredictions()[0], "predictions");
       }
     } else {
+      Rprintf(" prediction style 3 \n");
       result.push_back(forest->getPredictions(), "predictions");
     }
-
+    Rprintf("before preparing output \n");
     // Return output
     result.push_back(forest->getNumTrees(), "num.trees");
     result.push_back(forest->getNumIndependentVariables(), "num.independent.variables");
+    result.push_back(forest->getMissingTreeWeight(),"missing.tree.weight");
+    result.push_back(forest->getMissingForestWeight(),"missing.forest.weight");
+    result.push_back(forest->getImputationMethod(),"impute.missing");
+    
     if (treetype == TREE_SURVIVAL) {
       auto& temp = dynamic_cast<ForestSurvival&>(*forest);
       result.push_back(temp.getUniqueTimepoints(), "unique.death.times");
@@ -248,6 +258,7 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
       forest_object.push_back(forest->getChildNodeIDs(), "child.nodeIDs");
       forest_object.push_back(forest->getSplitVarIDs(), "split.varIDs");
       forest_object.push_back(forest->getSplitValues(), "split.values");
+      forest_object.push_back(forest->getImputedValues(), "imputed.values");
       forest_object.push_back(forest->getIsOrderedVariable(), "is.ordered");
 
       if (snp_data.nrow() > 1 && order_snps) {

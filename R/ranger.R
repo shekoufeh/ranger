@@ -954,15 +954,18 @@ ranger <- function(formula = NULL, data = NULL, num.trees = 500, mtry = NULL,
     result$num.random.splits <- num.random.splits
   }
   
+  result$missing.tree.weight <- missing.tree.weight
+  result$missing.forest.weight <- missing.forest.weight
+  
   ## Set imputation method
   if (imputationmethod == 0) {
-    result$imputationmethod <- "none"
+    result$impute.missing <- "none"
   } else if (imputationmethod == 1) {
-    result$imputationmethod <- "median"
+    result$impute.missing <- "median"
   } else if (imputationmethod == 2) {
-    result$imputationmethod <- "low_rank"
+    result$impute.missing <- "low_rank"
   } else if (imputationmethod == 3) {
-    result$imputationmethod <- "empirical_distribution"
+    result$impute.missing <- "empirical_distribution"
   }
   
   ## Set treetype

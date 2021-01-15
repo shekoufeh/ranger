@@ -104,8 +104,25 @@ public:
     }
     return result;
   }
+  std::vector<std::vector<double>> getImputedValues() {
+    std::vector<std::vector<double>> result;
+    for (auto& tree : trees) {
+      result.push_back(tree->getImputedValues());
+    }
+    return result;
+  }
   const std::vector<double>& getVariableImportance() const {
     return variable_importance;
+  }
+  
+  double getMissingForestWeight() const {
+    return missing_forest_weight;
+  }
+  double getMissingTreeWeight() const {
+    return missing_tree_weight;
+  }
+  uint getImputationMethod() const {
+    return imputation_method;
   }
   const std::vector<double>& getVariableImportanceCasewise() const {
     return variable_importance_casewise;

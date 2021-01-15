@@ -72,6 +72,21 @@ public:
       return getSnp(row, col, col_permuted);
     }
   }
+  
+  size_t getImputedIndex(size_t row, size_t col) const {
+    // Use permuted data for corrected impurity importance
+    size_t col_permuted = col;
+    if (col >= num_cols) {
+      col = getUnpermutedVarID(col);
+      row = getPermutedSampleID(row);
+    }
+    
+    if (col < num_cols_no_snp) {
+      return index_imputed_data[col * num_rows + row];
+    } else {
+      return getSnp(row, col, col_permuted);
+    }
+  }
 
   // #nocov start (cannot be tested anymore because GenABEL not on CRAN)
   size_t getSnp(size_t row, size_t col, size_t col_permuted) const {
@@ -109,7 +124,25 @@ public:
       return (index);
     }
   }
-
+  
+  double getUniqueImputedDataValue(size_t varID, size_t index) const {
+    // Use permuted data for corrected impurity importance
+    if (varID >= num_cols) {
+      varID = getUnpermutedVarID(varID);
+    }
+    
+    if (varID < num_cols_no_snp) {
+      return unique_imputed_data_values[varID][index];
+    } else {
+      // For GWAS data the index is the value
+      return (index);
+    }
+  }
+  
+  std::vector<double> getUniqueImputed(size_t varID) const{
+    return unique_imputed_data_values[varID];
+  }
+  
   size_t getNumUniqueDataValues(size_t varID) const {
     // Use permuted data for corrected impurity importance
     if (varID >= num_cols) {
@@ -124,7 +157,24 @@ public:
     }
   }
 
+  size_t getNumUniqueImputedDataValues(size_t varID) const {
+    // Use permuted data for corrected impurity importance
+    if (varID >= num_cols) {
+      varID = getUnpermutedVarID(varID);
+    }
+    
+    if (varID < num_cols_no_snp) {
+      return unique_imputed_data_values[varID].size();
+    } else {
+      // For GWAS data 0,1,2
+      return (3);
+    }
+  }
+  
   void sort();
+  void imputeAndSort(uint imputation_method);
+  std::vector<double> get_median_imputed_unique_vector(double &out_median, std::vector<size_t> &sampleIDs,
+                                    size_t split_varID, size_t start_pos, size_t end_pos) const;
   
   double compute_median(std::vector<double> &values) const;
   
@@ -215,11 +265,17 @@ protected:
   size_t num_cols_no_snp;
 
   bool externalData;
-
+  
+  // original
   std::vector<size_t> index_data;
   std::vector<std::vector<double>> unique_data_values;
   size_t max_num_unique_values;
-
+  
+  // imputed
+  std::vector<size_t> index_imputed_data;
+  std::vector<std::vector<double>> unique_imputed_data_values;
+  size_t max_num_unique_imputed_values;
+  std::vector<std::vector<double>> all_imputed_data;
   
   
   // For each varID true if ordered

@@ -74,9 +74,13 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
                                   type = "response", se.method = "infjack",
                                   seed = NULL, num.threads = NULL,
                                   verbose = TRUE, inbag.counts = NULL,
-								                  missing.forest.weight=object$missing.forest.weight, 
-								                  impute.missing=object$impute.missing,...) {
+								                  missing.tree.weight=1.0,
+								                  missing.forest.weight=1.0,
+								                  impute.missing="none",...) {
 
+#  print(missing.tree.weight)
+#  print(missing.forest.weight)
+#  print(impute.missing)
   ## GenABEL GWA data
   if (inherits(data, "gwaa.data")) {
     snp.names <- snp.names(data)
@@ -94,10 +98,11 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   } else {
     forest <- object
   }
+ 
   if (is.null(forest$num.trees) ||
         is.null(forest$child.nodeIDs) || is.null(forest$split.varIDs) ||
         is.null(forest$split.values) || is.null(forest$independent.variable.names) ||
-        is.null(forest$treetype)) {
+        is.null(forest$treetype) || is.null(forest$imputed.values)) {
     stop("Error: Invalid forest object.")
   }
   if (forest$treetype == "Survival" && (is.null(forest$chf) || is.null(forest$unique.death.times))) {
@@ -206,14 +211,15 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   } else if (!is.numeric(missing.forest.weight) || missing.forest.weight <= 0 || missing.forest.weight > 1.0) {
     stop("Error: Invalid value for missing.forest.weight")
   }
+
   
-  if (forest$imputationmethod == "none") {
+  if (impute.missing == "none") {
     imputationmethod <- 0
-  } else if (forest$imputationmethod == "median") {
+  } else if (impute.missing == "median") {
     imputationmethod <- 1
-  } else if (forest$imputationmethod == "low_rank") {
+  } else if (impute.missing == "low_rank") {
     imputationmethod <- 2
-  } else if (forest$imputationmethod == "empirical_distribution") {
+  } else if (impute.missing == "empirical_distribution") {
     imputationmethod <- 3
   }  else {
     stop("Error: Unknown imputation method.")
@@ -235,7 +241,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   } else {
     stop("Error: Unknown tree type.")
   }
-
+  print("Before default vars")
   ## Defaults for variables not needed
   mtry <- 0
   importance <- 0
@@ -270,7 +276,6 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   regularization.factor <- c(0, 0)
   use.regularization.factor <- FALSE
   regularization.usedepth <- FALSE
-  missing.tree.weight <- 1.0					   
   
   ## Use sparse matrix
   if (inherits(x, "dgCMatrix")) {
@@ -282,7 +287,10 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
     use.sparse.data <- FALSE
     x <- data.matrix(x)
   }
-  
+  print("Before calling rangerCpp")
+  print(c(missing.tree.weight,missing.forest.weight,imputationmethod))
+  print(x)
+  print(y)
   ## Call Ranger
   result <- rangerCpp(treetype, x, y, forest$independent.variable.names, mtry,
                       num.trees, verbose, seed, num.threads, write.forest, importance,
@@ -295,12 +303,12 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
                       prediction.type, num.random.splits, sparse.x, use.sparse.data,
                       order.snps, oob.error, max.depth, inbag, use.inbag, 
                       regularization.factor, use.regularization.factor, regularization.usedepth,
-					  missing.tree.weight,missing.forest.weight,imputationmethod)
+					            missing.tree.weight,missing.forest.weight,imputationmethod)
 
   if (length(result) == 0) {
     stop("User interrupt or internal error.")
   }
-
+  print("Finished rangerRCPP")
   ## Prepare results
   result$num.samples <- nrow(x)
   result$treetype <- forest$treetype
@@ -512,8 +520,12 @@ predict.ranger <- function(object, data = NULL, predict.all = FALSE,
                            quantiles = c(0.1, 0.5, 0.9), 
                            what = NULL,
                            seed = NULL, num.threads = NULL,
-                           verbose = TRUE, ...) {
+                           verbose = TRUE,
+                           missing.tree.weight=object$missing.tree.weight,
+                           missing.forest.weight=object$missing.forest.weight,
+                           impute.missing=object$impute.missing, ...) {
   forest <- object$forest
+  
   if (is.null(forest)) {
     stop("Error: No saved forest in ranger object. Please set write.forest to TRUE when calling ranger.")
   }
@@ -538,7 +550,9 @@ predict.ranger <- function(object, data = NULL, predict.all = FALSE,
       node.values <- object$random.node.values.oob
     } else {
       ## New data prediction
-      terminal.nodes <- predict(object, data, type = "terminalNodes")$predictions + 1
+      terminal.nodes <- predict(object, data, type = "terminalNodes",missing.tree.weight=missing.tree.weight,
+                                missing.forest.weight=missing.forest.weight,
+                                impute.missing=impute.missing)$predictions + 1
       node.values <- 0 * terminal.nodes
       for (tree in 1:num.trees) {
         node.values[, tree] <- object$random.node.values[terminal.nodes[, tree], tree]
@@ -574,6 +588,10 @@ predict.ranger <- function(object, data = NULL, predict.all = FALSE,
     if (is.null(data)) {
      stop("Error: Argument 'data' is required for non-quantile prediction.") 
     }
-    predict(forest, data, predict.all, num.trees, type, se.method, seed, num.threads, verbose, object$inbag.counts, ...)
+    #result<-
+    predict(forest, data, predict.all, num.trees, type, se.method, seed, num.threads, verbose, object$inbag.counts, missing.tree.weight,
+            missing.forest.weight,
+            impute.missing, ...)
   }
+ # return(result)
 }
