@@ -109,7 +109,6 @@ void ForestRegression::predictInternal(size_t sample_idx) {
         predictions[0][sample_idx][tree_idx] = getTreePrediction(tree_idx, sample_idx,missing_count);
       }
     
-      Rprintf(">>Tree %i, sample %i, Prediction %f  \n", tree_idx,sample_idx,predictions[0][sample_idx][tree_idx]);
     }
   } else {
     // Mean over trees
@@ -123,7 +122,6 @@ void ForestRegression::predictInternal(size_t sample_idx) {
       prediction_sum += (pred*weight);
       sum_weights += weight;				
     }
- //   Rprintf("Prediction sum %f , sum weight %f \n", prediction_sum, sum_weights);
     predictions[0][0][sample_idx] = prediction_sum / sum_weights;
   }
 }
@@ -145,7 +143,6 @@ void ForestRegression::computePredictionErrorInternal() {
     for (size_t sample_idx = 0; sample_idx < trees[tree_idx]->getNumSamplesOob(); ++sample_idx) {
       size_t sampleID = trees[tree_idx]->getOobSampleIDs()[sample_idx];
       double value = getTreePrediction(tree_idx, sample_idx, missing_count);
-     // Rprintf("In computePredictionErrorInternal: tree %i, sample %i, missing_count %i, value %f \n",tree_idx, sample_idx, missing_count,value);
       weight = pow(Forest::missing_forest_weight,missing_count);
       predictions[0][0][sampleID] += (weight*value);
       weighted_samples_oob_count[sampleID]+=weight;										   
@@ -163,9 +160,7 @@ void ForestRegression::computePredictionErrorInternal() {
       double predicted_value = predictions[0][0][i];
       double real_value = data->get_y(i, 0);
       overall_prediction_error += (predicted_value - real_value) * (predicted_value - real_value);
-     // Rprintf("In compute not NaN \n");
     } else {
-     // Rprintf("In compute NAAAAAAAAAAAAAAAAAN \n");
       predictions[0][0][i] = NAN;
     }
   }

@@ -189,17 +189,12 @@ void Tree::predict(const Data* prediction_data, bool oob_prediction) {
       double value = prediction_data->get_x(sample_idx, split_varID);
       
       
-      //Rprintf("node: %i, var: %i, imputed: %f , splitVal: %f , currVal: %f ,\n",nodeID,split_varID, imputed_values[nodeID],split_values[nodeID],value);
-      //if(std::isnan(imputed_values[nodeID])){
-      //  Rprintf(" naaan \n");
-      //}
 	    // randomly pick a number btw 0, 1
       missGoLeft = false;
       missVal = false;
       
       missVal = std::isnan(value);
       
-      //Rprintf("===> NodeID: %i, start: %i , end: %i , varID: %i, sampleIDsSize: %i \n", nodeID,start_pos[nodeID], end_pos[nodeID],split_varID,sampleIDs.size());
       double newValueForMissing;
       if(imputation_method == 1 && missVal){
         // compute the median of non-missing values
@@ -245,13 +240,6 @@ void Tree::predict(const Data* prediction_data, bool oob_prediction) {
         }
       }
     }
-    /*
-    Rprintf("------------------\n");
-    for(size_t i=0; i<sampleIDs.size(); ++i){
-      Rprintf("  %i,  ", sampleIDs[i]);
-    }
-    Rprintf("\n");
-     */
     prediction_terminal_nodeIDs[i] = nodeID;
 	prediction_terminal_node_missing_counts[i] = missing_count;														   
   }

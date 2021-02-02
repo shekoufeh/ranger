@@ -296,9 +296,7 @@ void Forest::run(bool verbose, bool compute_oob_error) {
     if (verbose && verbose_out) {
       *verbose_out << "Growing trees .." << std::endl;
     }
-
     grow();
-
     if (verbose && verbose_out) {
       *verbose_out << "Computing prediction error .." << std::endl;
     }
@@ -450,10 +448,8 @@ void Forest::grow() {
 
   // Create thread ranges
   equalSplit(thread_ranges, 0, num_trees - 1, num_threads);
-
   // Call special grow functions of subclasses. There trees must be created.
   growInternal();
-
   // Init trees, create a seed for each tree, based on main seed
   std::uniform_int_distribution<uint> udist;
   for (size_t i = 0; i < num_trees; ++i) {
@@ -479,7 +475,6 @@ void Forest::grow() {
     } else {
       tree_manual_inbag = &manual_inbag[0];
     }
-
     trees[i]->init(data.get(), mtry, num_samples, tree_seed, &deterministic_varIDs, tree_split_select_weights,
         importance_mode, min_node_size, sample_with_replacement, memory_saving_splitting, splitrule, &case_weights,
         tree_manual_inbag, keep_inbag, &sample_fraction, alpha, minprop, holdout, num_random_splits, max_depth,

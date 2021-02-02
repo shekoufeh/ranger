@@ -429,24 +429,12 @@ void Data::imputeAndSort(uint imputation_method){
       - unique_values.begin();
       index_data[col * num_rows + row] = idx;
     }
-   // Rprintf("***********  \n");
     // Save unique values
     unique_data_values.push_back(unique_values);
     if (unique_values.size() > max_num_unique_values) {
       max_num_unique_values = unique_values.size();
     }
-    /*
-    size_t imax=unique_data_values.size();
-    for (size_t col = 0; col < imax; ++col) {
-      size_t jmax=unique_data_values[col].size();
-      Rprintf("---  \n");
-      for (size_t row = 0; row < jmax; ++row) {
-        Rprintf("  %f   ",unique_data_values[col][row]);
-      }
-      Rprintf(" \n");
-    }
-    Rprintf("<><><><><><><><>  \n");
-     */
+    
     ////////////////////////////////////////
     // Perform sorting based on imputed data
     ////////////////////////////////////////
@@ -461,9 +449,7 @@ void Data::imputeAndSort(uint imputation_method){
     for (size_t row = 0; row < num_rows; ++row) {
       value = get_x(row, col);
       if(std::isnan(value)){
-     //   Rprintf("!!!!!!Row %i, Col % i, Value before: %f \n",row,col,value);
         value = all_imputed_data[col][row];
-     //   Rprintf("!!!!!Value after: %f \n",value);
       }
       size_t idx = std::lower_bound(unique_imputed_values.begin(), unique_imputed_values.end(), value)
       - unique_imputed_values.begin();
@@ -478,16 +464,7 @@ void Data::imputeAndSort(uint imputation_method){
     
   }
   
-  //size_t imax=unique_imputed_data_values.size();
-  //for (size_t col = 0; col < imax; ++col) {
-  //  size_t jmax=unique_imputed_data_values[col].size();
-  //  Rprintf("---  \n");
-  //  for (size_t row = 0; row < jmax; ++row) {
-  //    Rprintf("  %f   ",unique_imputed_data_values[col][row]);
-  //  }
-  //}
   
-  //Rprintf("\n Row: %i  Col: %i \n",unique_imputed_data_values.size(), unique_imputed_data_values[0].size());
 }
 
 

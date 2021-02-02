@@ -241,7 +241,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   } else {
     stop("Error: Unknown tree type.")
   }
-  print("Before default vars")
+#  print("Before default vars")
   ## Defaults for variables not needed
   mtry <- 0
   importance <- 0
@@ -287,10 +287,10 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
     use.sparse.data <- FALSE
     x <- data.matrix(x)
   }
-  print("Before calling rangerCpp")
-  print(c(missing.tree.weight,missing.forest.weight,imputationmethod))
-  print(x)
-  print(y)
+ # print("Before calling rangerCpp")
+#  print(c(missing.tree.weight,missing.forest.weight,imputationmethod))
+#  print(x)
+#  print(y)
   ## Call Ranger
   result <- rangerCpp(treetype, x, y, forest$independent.variable.names, mtry,
                       num.trees, verbose, seed, num.threads, write.forest, importance,
@@ -308,7 +308,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   if (length(result) == 0) {
     stop("User interrupt or internal error.")
   }
-  print("Finished rangerRCPP")
+ # print("Finished rangerRCPP")
   ## Prepare results
   result$num.samples <- nrow(x)
   result$treetype <- forest$treetype
