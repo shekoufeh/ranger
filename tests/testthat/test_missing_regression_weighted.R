@@ -1,8 +1,8 @@
 ## Tests for random forests for regression with missing values
-
+rm(list=ls())
 library(ranger)
 context("ranger_reg")
-#rm(list=ls())
+
 ## Modify iris to contain missing values
 if(TRUE)
 {
@@ -17,10 +17,9 @@ if(TRUE)
   drops <- c("Species")
   iris<-iris[ , !(names(iris) %in% drops)]
 }
-iris<-iris[1:20,]
 ## Initialize the random forest for regression
 rg.reg <- ranger(Sepal.Length ~ .,num.trees=500, num.threads = 1, data = iris,seed = 480,
-                 missing.tree.weight=0.5,missing.forest.weight=0.2)
+                 missing.tree.weight=1.0,missing.forest.weight=1.0)
 
 predict(rg.reg,iris)
 ## Basic tests (for all random forests equal)

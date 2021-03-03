@@ -1,7 +1,8 @@
 ## Tests for random forests for regression with missing values using median
+rm(list=ls())
 library(ranger)
 context("ranger_reg")
-rm(list=ls())
+
 ## Modify iris to contain missing values
 if(TRUE)
 {
@@ -16,9 +17,17 @@ if(TRUE)
   drops <- c("Species")
   iris<-iris[ , !(names(iris) %in% drops)]
 }
+#data <- read.csv(file = paste(getwd(),"/simulated_missing_data/MCAR/",1,"-",0.05,".csv",sep = ""))
+data <- read.csv(file = paste(getwd(),"/synth-cor0.05-Rsqr0.9-5000.xlsx",sep = ""))
+
+iris<-data
+#iris[is.na(iris)]<-0
+#iris<-iris[,-seq(3,30)]
+#iris<-iris[500:800,]
 ## Initialize the random forest for regression
-rg.reg <- ranger(Sepal.Length ~ .,num.trees=500, data = iris,seed = 840,
-                 impute.missing="median")
+rg.reg <- ranger(Y ~ .,num.trees=500, data = iris,seed = 840,impute.missing="median",missing.tree.weight = 0.5,missing.forest.weight = 0.5)
+#rg.reg <- ranger(Sepal.Length ~ .,num.trees=500, data = iris,seed = 840,
+               #  impute.missing="median")
 
 
 
